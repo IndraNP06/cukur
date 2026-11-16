@@ -38,6 +38,8 @@ $_ENV['APP_STORAGE'] = '/tmp/storage';
 putenv('ASSET_URL=/');
 $_ENV['ASSET_URL'] = '/';
 
+$_SERVER['SCRIPT_NAME'] = '/index.php';
+
 putenv('DB_CONNECTION=sqlite');
 $_ENV['DB_CONNECTION'] = 'sqlite';
 
