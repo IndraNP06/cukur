@@ -26,6 +26,9 @@
       "dest": "/robots.txt"
     },
     {
+      "handle": "filesystem"
+    },
+    {
       "src": "/(.*)",
       "dest": "/api/index.php"
     }
@@ -33,6 +36,7 @@
   "env": {
     "APP_ENV": "production",
     "APP_DEBUG": "false",
+    "ASSET_URL": "/",
     "APP_STORAGE": "/tmp/storage",
     "APP_CONFIG_CACHE": "/tmp/config.php",
     "APP_EVENTS_CACHE": "/tmp/events.php",

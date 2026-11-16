@@ -35,6 +35,9 @@ foreach ($storageDirs as $dir) {
 putenv('APP_STORAGE=/tmp/storage');
 $_ENV['APP_STORAGE'] = '/tmp/storage';
 
+putenv('ASSET_URL=/');
+$_ENV['ASSET_URL'] = '/';
+
 putenv('DB_CONNECTION=sqlite');
 $_ENV['DB_CONNECTION'] = 'sqlite';
 
