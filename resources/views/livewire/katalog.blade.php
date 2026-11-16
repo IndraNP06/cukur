@@ -7,9 +7,18 @@ use App\Models\Layanan;
 use App\Models\User;
 
 new #[Layout('components.layouts.blank')] #[Title('Katalog Layanan & Profil Kapster - Ran CukurIn')] class extends Component {
+ public function mount() {
+ try {
+ if (!cache()->has('sheets_synced_katalog_fresh')) {
+ app(\App\Services\GoogleSheetsService::class)->pullTable('layanan');
+ cache()->put('sheets_synced_katalog_fresh', true, now()->addSeconds(15));
+ }
+ } catch (\Throwable $e) {}
+ }
+
  public function with() {
  $q = request('q');
- $layanans = Layanan::where('is_active', true);
+ $layanans = Layanan::where('is_active', true)->orderBy('id', 'asc');
  $kapsters = User::whereHas('roles', function($q){$q->where('name', 'Kapster');});
 
  if ($q) {
@@ -77,10 +86,19 @@ new #[Layout('components.layouts.blank')] #[Title('Katalog Layanan & Profil Kaps
  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-5">
  @foreach($layanans as $layanan)
  <div class="bg-surface-container-low rounded-xl overflow-hidden shadow-lg transition-transform hover:-translate-y-2 group flex flex-col h-full relative">
- <div class="relative h-48 overflow-hidden bg-surface-container">
- <img src="{{ $layanan->gambar_url }}" alt="{{ $layanan->nama_layanan }}" class="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700">
- <div class="absolute inset-0 bg-gradient-to-t from-surface-container-low via-surface-container-low/30 to-transparent"></div>
- <div class="absolute top-3 right-3 w-8 h-8 rounded-lg bg-surface-container-low/80 backdrop-blur-md flex items-center justify-center text-primary shadow-sm">
+ <div class="relative h-48 overflow-hidden bg-surface-container flex items-center justify-center">
+ @if(!empty($layanan->gambar_url) && !str_starts_with($layanan->gambar_url, 'http://localhost'))
+ <img src="{{ $layanan->gambar_url }}" alt="{{ $layanan->nama_layanan }}" class="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+ <div class="w-full h-full items-center justify-center text-primary bg-primary/10 hidden">
+ <span class="material-symbols-outlined text-4xl">content_cut</span>
+ </div>
+ @else
+ <div class="w-full h-full flex items-center justify-center text-primary bg-primary/10">
+ <span class="material-symbols-outlined text-4xl">content_cut</span>
+ </div>
+ @endif
+ <div class="absolute inset-0 bg-gradient-to-t from-surface-container-low via-surface-container-low/30 to-transparent pointer-events-none"></div>
+ <div class="absolute top-3 right-3 w-8 h-8 rounded-lg bg-surface-container-low/80 backdrop-blur-md flex items-center justify-center text-primary shadow-sm pointer-events-none">
  <span class="material-symbols-outlined text-sm">
  @if(str_contains(strtolower($layanan->nama_layanan), 'hair') || str_contains(strtolower($layanan->nama_layanan), 'cukur'))
  content_cut

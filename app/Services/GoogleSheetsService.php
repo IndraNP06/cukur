@@ -154,7 +154,7 @@ class GoogleSheetsService
 
                 // Khusus tabel voucher: isi default jika kuota_terpakai atau is_active kosong
                 if ($table === 'voucher') {
-                    if (!isset($record['kuota_terpakai']) || $record['kuota_terpakai'] === null) {
+                    if (!isset($record['kuota_terpakai']) || $record['kuota_terpakai'] === null || $record['kuota_terpakai'] === '') {
                         $record['kuota_terpakai'] = 0;
                     }
                     if (!isset($record['is_active']) || $record['is_active'] === null || $record['is_active'] === '') {
@@ -162,9 +162,26 @@ class GoogleSheetsService
                     }
                 }
 
-                // Default untuk kolom boolean is_active di tabel lainnya jika null
-                if (array_key_exists('is_active', $record) && ($record['is_active'] === null || $record['is_active'] === '')) {
-                    $record['is_active'] = 1;
+                // Khusus tabel layanan: isi default jika harga atau durasi kosong
+                if ($table === 'layanan') {
+                    if (!isset($record['harga']) || $record['harga'] === '' || $record['harga'] === null) {
+                        $record['harga'] = 0;
+                    }
+                    if (!isset($record['estimasi_durasi_menit']) || $record['estimasi_durasi_menit'] === '' || $record['estimasi_durasi_menit'] === null) {
+                        $record['estimasi_durasi_menit'] = 30;
+                    }
+                }
+
+                // Default dan normalisasi boolean is_active untuk semua tabel
+                if (array_key_exists('is_active', $record)) {
+                    $rawActive = strtolower(trim((string)$record['is_active']));
+                    if ($rawActive === '' || $rawActive === '1' || $rawActive === 'true' || $rawActive === 'ya' || $rawActive === 'yes') {
+                        $record['is_active'] = 1;
+                    } elseif ($rawActive === '0' || $rawActive === 'false' || $rawActive === 'tidak' || $rawActive === 'no') {
+                        $record['is_active'] = 0;
+                    } else {
+                        $record['is_active'] = 1;
+                    }
                 }
 
                 if (!empty($record)) {

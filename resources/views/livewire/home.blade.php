@@ -138,7 +138,10 @@ new #[Layout('components.layouts.blank')] #[Title('Ran CukurIn - Precision in Ev
             }
         }
 
-        $layanans = Layanan::where('is_active', true)->take(6)->get();
+        $layanans = Layanan::where('is_active', true)->orderBy('id', 'asc')->get();
+        if ($layanans->isEmpty()) {
+            $layanans = Layanan::orderBy('id', 'asc')->get();
+        }
         $banners = \App\Models\Banner::where('is_active', true)->orderBy('urutan')->get();
         $galeris = \App\Models\Galeri::where('is_active', true)->take(6)->get();
 
@@ -542,10 +545,19 @@ new #[Layout('components.layouts.blank')] #[Title('Ran CukurIn - Precision in Ev
  <div class="grid grid-cols-1 md:grid-cols-3 gap-5 lg:gap-5">
  @foreach($layanans as $layanan)
  <div class="bg-background border border-outline-variant rounded-2xl p-5 lg:p-5 hover:border-primary/40 transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl hover:shadow-amber-500/5 group flex flex-col h-full">
- <div class="relative w-full h-48 rounded-xl overflow-hidden mb-5 bg-surface-container border border-outline-variant/40">
- <img src="{{ $layanan->gambar_url }}" alt="{{ $layanan->nama_layanan }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
- <div class="absolute inset-0 bg-gradient-to-t from-background/90 via-transparent to-transparent"></div>
- <div class="absolute top-3 left-3 w-9 h-9 rounded-lg bg-background/80 backdrop-blur-md border border-outline-variant/40 flex items-center justify-center text-primary shadow-sm">
+ <div class="relative w-full h-48 rounded-xl overflow-hidden mb-5 bg-surface-container border border-outline-variant/40 flex items-center justify-center">
+ @if(!empty($layanan->gambar_url) && !str_starts_with($layanan->gambar_url, 'http://localhost'))
+ <img src="{{ $layanan->gambar_url }}" alt="{{ $layanan->nama_layanan }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+ <div class="w-full h-full items-center justify-center text-primary bg-primary/10 hidden">
+ <span class="material-symbols-outlined text-4xl">content_cut</span>
+ </div>
+ @else
+ <div class="w-full h-full flex items-center justify-center text-primary bg-primary/10">
+ <span class="material-symbols-outlined text-4xl">content_cut</span>
+ </div>
+ @endif
+ <div class="absolute inset-0 bg-gradient-to-t from-background/90 via-transparent to-transparent pointer-events-none"></div>
+ <div class="absolute top-3 left-3 w-9 h-9 rounded-lg bg-background/80 backdrop-blur-md border border-outline-variant/40 flex items-center justify-center text-primary shadow-sm pointer-events-none">
  <span class="material-symbols-outlined text-sm">
  @if(str_contains(strtolower($layanan->nama_layanan), 'hair') || str_contains(strtolower($layanan->nama_layanan), 'cukur'))
  content_cut

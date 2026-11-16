@@ -23,6 +23,26 @@ new #[Layout('components.layouts.admin')] #[Title('Kelola Layanan - Ran Cukurin'
  public $gambar;
  public $is_active = true;
 
+ public function mount() {
+ try {
+ if (!cache()->has('sheets_synced_layanan_admin')) {
+ app(\App\Services\GoogleSheetsService::class)->pullTable('layanan');
+ cache()->put('sheets_synced_layanan_admin', true, now()->addSeconds(15));
+ }
+ } catch (\Throwable $e) {}
+ }
+
+ public function syncFromSheets() {
+ try {
+ $service = app(\App\Services\GoogleSheetsService::class);
+ $service->pullTable('layanan');
+ cache()->forget('sheets_synced_layanan_admin');
+ session()->flash('message', 'Data layanan berhasil disinkronkan langsung dari Google Spreadsheet!');
+ } catch (\Throwable $e) {
+ session()->flash('error', 'Gagal menyinkronkan: ' . $e->getMessage());
+ }
+ }
+
  public function rules() {
         return [
  'nama_layanan' => 'required|string|max:255',
@@ -131,10 +151,17 @@ new #[Layout('components.layouts.admin')] #[Title('Kelola Layanan - Ran Cukurin'
  Atur dan perbarui daftar layanan, durasi pengerjaan, dan harga standar yang berlaku di seluruh cabang barbershop.
  </p>
  </div>
+ <div class="flex items-center gap-3">
+ <button wire:click="syncFromSheets" type="button" class="bg-surface-container-high hover:bg-surface-container-highest text-primary border border-primary/30 font-label-md text-label-md px-4 py-3 rounded-full flex items-center gap-2 transition-all shadow-md">
+ <span class="material-symbols-outlined text-[20px] animate-spin" wire:loading wire:target="syncFromSheets">sync</span>
+ <span class="material-symbols-outlined text-[20px]" wire:loading.remove wire:target="syncFromSheets">sync</span>
+ <span>Sinkron Spreadsheet</span>
+ </button>
  <button wire:click="create" class="bg-primary text-on-primary hover:scale-105 hover:bg-primary-container transition-all duration-300 font-label-md text-label-md px-4 lg:px-5 py-3 rounded-full flex items-center gap-2 shadow-lg shadow-primary/20">
  <span class="material-symbols-outlined text-[20px]">add</span>
  Tambah Layanan Baru
  </button>
+ </div>
  </div>
 
  <!-- Toolbar -->

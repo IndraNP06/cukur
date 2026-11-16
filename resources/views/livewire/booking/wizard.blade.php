@@ -27,6 +27,28 @@ new #[Layout('components.layouts.customer')] #[Title('Booking Reservasi - Ran Cu
 
  public function mount() {
  $this->selectedDate = Carbon::now()->format('Y-m-d');
+
+ // Sinkronkan data layanan dan voucher dari Google Spreadsheet
+ try {
+ if (!cache()->has('sheets_synced_wizard_fresh')) {
+ $service = app(\App\Services\GoogleSheetsService::class);
+ $service->pullTable('layanan');
+ $service->pullTable('voucher');
+ cache()->put('sheets_synced_wizard_fresh', true, now()->addSeconds(15));
+ }
+ } catch (\Throwable $e) {}
+ }
+
+ public function syncLayananFromSheets() {
+ try {
+ $service = app(\App\Services\GoogleSheetsService::class);
+ $service->pullTable('layanan');
+ $service->pullTable('voucher');
+ cache()->forget('sheets_synced_wizard_fresh');
+ session()->flash('sync_success', 'Daftar layanan berhasil disinkronkan dengan data terbaru Google Sheets!');
+ } catch (\Throwable $e) {
+ session()->flash('sync_error', 'Gagal menyinkronkan data: ' . $e->getMessage());
+ }
  }
 
  public function nextStep() {
@@ -145,7 +167,10 @@ new #[Layout('components.layouts.customer')] #[Title('Booking Reservasi - Ran Cu
  }
 
  public function with() {
- $layanans = Layanan::all();
+ $layanans = Layanan::where('is_active', true)->orderBy('id', 'asc')->get();
+ if ($layanans->isEmpty()) {
+ $layanans = Layanan::orderBy('id', 'asc')->get();
+ }
  $kapsters = User::whereHas('roles', function($q){$q->where('name', 'Kapster');})->get();
  
  $subtotal = 0;
@@ -232,22 +257,52 @@ new #[Layout('components.layouts.customer')] #[Title('Booking Reservasi - Ran Cu
  <div class="space-y-16 animate-[fadeIn_0.3s_ease-out]">
  <!-- Service Selection -->
  <section>
- <div class="mb-8 flex items-end justify-between">
+ <div class="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
  <div>
  <h2 class="font-headline-lg-mobile lg:font-headline-lg text-on-surface mb-2 text-headline-lg-mobile">Pilih Layanan Anda</h2>
  <p class="font-body-md text-on-surface-variant">Pilih satu layanan premium untuk sesi grooming Anda.</p>
  @error('selectedLayanan') <span class="text-error text-sm block mt-2">{{ $message }}</span> @enderror
  </div>
+ <div class="flex items-center gap-3">
+ <button wire:click="syncLayananFromSheets" type="button" class="text-xs text-primary hover:text-primary-fixed bg-surface-container hover:bg-surface-container-high border border-outline-variant/40 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all shadow-sm">
+ <span class="material-symbols-outlined text-[16px] animate-spin" wire:loading wire:target="syncLayananFromSheets">sync</span>
+ <span class="material-symbols-outlined text-[16px]" wire:loading.remove wire:target="syncLayananFromSheets">sync</span>
+ <span>Sinkron Layanan</span>
+ </button>
  <span class="font-label-sm text-label-sm text-primary uppercase tracking-widest">[ Step 01 ]</span>
  </div>
+ </div>
+
+ @if(session('sync_success'))
+ <div class="mb-6 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 p-3 rounded-xl text-xs flex items-center gap-2">
+ <span class="material-symbols-outlined text-base">check_circle</span>
+ <span>{{ session('sync_success') }}</span>
+ </div>
+ @endif
+ @if(session('sync_error'))
+ <div class="mb-6 bg-rose-500/10 border border-rose-500/30 text-rose-400 p-3 rounded-xl text-xs flex items-center gap-2">
+ <span class="material-symbols-outlined text-base">error</span>
+ <span>{{ session('sync_error') }}</span>
+ </div>
+ @endif
+
  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-5">
  @foreach($layanans as $layanan)
  <label class="relative cursor-pointer group">
  <input wire:model="selectedLayanan" value="{{ $layanan->id }}" class="peer sr-only" type="radio" name="layanan_select">
  <div class="bg-surface-container p-4 lg:p-5 rounded-xl transition-all duration-300 peer-checked:bg-surface-bright peer-checked:shadow-[0_0_0_2px_theme(colors.primary)] peer-checked:shadow-[0_8px_30px_rgba(255,193,116,0.15)] group-hover:-translate-y-1 h-full flex flex-col">
  <div class="flex justify-between items-start mb-4">
- <div class="w-16 h-16 rounded-xl overflow-hidden bg-surface-dim border border-outline-variant/30 flex items-center justify-center shrink-0 shadow-sm">
- <img src="{{ $layanan->gambar_url }}" alt="{{ $layanan->nama_layanan }}" class="w-full h-full object-cover">
+ <div class="w-16 h-16 rounded-xl overflow-hidden bg-surface-dim border border-outline-variant/30 flex items-center justify-center shrink-0 shadow-sm relative">
+ @if(!empty($layanan->gambar_url) && !str_starts_with($layanan->gambar_url, 'http://localhost'))
+ <img src="{{ $layanan->gambar_url }}" alt="{{ $layanan->nama_layanan }}" class="w-full h-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+ <div class="w-full h-full items-center justify-center text-primary bg-primary/10 hidden">
+ <span class="material-symbols-outlined text-2xl">content_cut</span>
+ </div>
+ @else
+ <div class="w-full h-full flex items-center justify-center text-primary bg-primary/10">
+ <span class="material-symbols-outlined text-2xl">content_cut</span>
+ </div>
+ @endif
  </div>
  <div class="w-6 h-6 rounded-full bg-primary text-on-primary flex items-center justify-center opacity-0 scale-50 transition-all peer-checked:opacity-100 peer-checked:scale-100">
  <span class="material-symbols-outlined text-[16px]">check</span>
@@ -256,7 +311,7 @@ new #[Layout('components.layouts.customer')] #[Title('Booking Reservasi - Ran Cu
  <h3 class="font-headline-md text-on-surface mb-2 text-headline-md">{{ $layanan->nama_layanan }}</h3>
  <div class="flex items-center gap-2 mb-6">
  <span class="material-symbols-outlined text-primary text-[18px]">schedule</span>
- <span class="font-label-sm text-label-sm text-on-surface-variant">{{ $layanan->estimasi_durasi_menit }} Menit</span>
+ <span class="font-label-sm text-label-sm text-on-surface-variant">{{ $layanan->estimasi_durasi_menit ?? 30 }} Menit</span>
  </div>
  <div class="mt-auto pt-4 border-t border-outline-variant/20 flex justify-between items-center">
  <span class="font-label-sm text-label-sm text-on-surface-variant uppercase">Harga</span>
@@ -376,7 +431,7 @@ new #[Layout('components.layouts.customer')] #[Title('Booking Reservasi - Ran Cu
  <!-- Service Detail -->
  <div class="flex items-start gap-4 p-4 rounded-lg bg-surface-container-high">
  <div class="w-12 h-12 rounded-lg bg-surface flex items-center justify-center text-primary shrink-0 overflow-hidden">
- @if($selectedLayananModel && $selectedLayananModel->gambar_url)
+ @if($selectedLayananModel && !empty($selectedLayananModel->gambar_url) && !str_starts_with($selectedLayananModel->gambar_url, 'http://localhost'))
  <img src="{{ $selectedLayananModel->gambar_url }}" alt="{{ $selectedLayananModel->nama_layanan }}" class="w-full h-full object-cover">
  @else
  <span class="material-symbols-outlined">content_cut</span>
