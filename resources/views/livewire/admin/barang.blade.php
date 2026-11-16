@@ -5,293 +5,544 @@ use Livewire\Attributes\Title;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 use App\Models\Barang;
+use App\Models\LogStok;
 
-new #[Layout('components.layouts.admin')] #[Title('Kelola Barang - Ran Cukurin')] class extends Component {
- use WithPagination;
+new #[Layout('components.layouts.admin')] #[Title('Kelola Barang & Inventaris - Ran Cukurin')] class extends Component {
+    use WithPagination;
 
- public $search = '';
- public $filterKategori = 'all';
+    public $search = '';
+    public $filterKategori = 'all';
 
- public $showModal = false;
- public $isEdit = false;
- public $barangId;
+    public $showModal = false;
+    public $isEdit = false;
+    public $barangId;
 
- public $nama_barang;
- public $tipe = 'Produk Jual';
- public $stok_sekarang = 0;
- public $batas_minimum = 0;
- public $harga_beli = 0;
- public $harga_jual = 0;
- public $gambar;
+    public $nama_barang;
+    public $tipe = 'ProdukJual';
+    public $stok_sekarang = 0;
+    public $batas_minimum = 0;
+    public $harga_beli = 0;
+    public $harga_jual = 0;
+    public $gambar;
 
- public function rules() {
+    // Quick Mutasi Masuk/Keluar Modal
+    public $showMutasiModal = false;
+    public $mutasiBarangId;
+    public $mutasiBarangNama;
+    public $mutasiJenis = 'masuk'; // 'masuk', 'keluar'
+    public $mutasiJumlah = 1;
+    public $mutasiKeterangan = '';
+
+    public function rules() {
         return [
- 'nama_barang' => 'required|string|max:255',
- 'tipe' => 'required|string|in:Produk Jual,Material Ops,Aset',
- 'stok_sekarang' => 'required|integer|min:0',
- 'batas_minimum' => 'required|integer|min:0',
- 'harga_beli' => 'required|numeric|min:0',
- 'harga_jual' => 'required|numeric|min:0',
- 'gambar' => 'nullable|string|max:255',
- ];
+            'nama_barang' => 'required|string|max:255',
+            'tipe' => 'required|string|in:ProdukJual,BahanBaku,Produk Jual,Material Ops',
+            'stok_sekarang' => 'required|integer|min:0',
+            'batas_minimum' => 'required|integer|min:0',
+            'harga_beli' => 'required|numeric|min:0',
+            'harga_jual' => 'required|numeric|min:0',
+            'gambar' => 'nullable|string|max:255',
+        ];
     }
 
- public function updatedSearch() {
- $this->resetPage();
- }
+    public function mount() {
+        try {
+            if (!cache()->has('sheets_sync_barang_master')) {
+                app(\App\Services\GoogleSheetsService::class)->pullTable('barang');
+                cache()->put('sheets_sync_barang_master', true, now()->addSeconds(10));
+            }
+        } catch (\Throwable $e) {}
+    }
 
- public function updatedFilterKategori() {
- $this->resetPage();
- }
+    public function syncFromSheets() {
+        try {
+            app(\App\Services\GoogleSheetsService::class)->pullTable('barang');
+            cache()->forget('sheets_sync_barang_master');
+            session()->flash('message', 'Data master barang berhasil disinkronkan langsung dari Google Spreadsheet!');
+        } catch (\Throwable $e) {
+            session()->flash('error', 'Gagal menyinkronkan data: ' . $e->getMessage());
+        }
+    }
 
- public function create() {
- $this->resetValidation();
- $this->reset(['nama_barang', 'tipe', 'stok_sekarang', 'batas_minimum', 'harga_beli', 'harga_jual', 'gambar', 'barangId']);
- $this->isEdit = false;
- $this->showModal = true;
- }
+    public function updatedSearch() {
+        $this->resetPage();
+    }
 
- public function edit($id) {
- $this->resetValidation();
- $barang = Barang::findOrFail($id);
- $this->barangId = $barang->id;
- $this->nama_barang = $barang->nama_barang;
- $this->tipe = $barang->tipe;
- $this->stok_sekarang = $barang->stok_sekarang;
- $this->batas_minimum = $barang->batas_minimum;
- $this->harga_beli = $barang->harga_beli;
- $this->harga_jual = $barang->harga_jual;
- $this->gambar = $barang->gambar;
- 
- $this->isEdit = true;
- $this->showModal = true;
- }
+    public function updatedFilterKategori() {
+        $this->resetPage();
+    }
 
- public function save() {
- $this->validate();
+    public function create() {
+        $this->resetValidation();
+        $this->reset(['nama_barang', 'tipe', 'stok_sekarang', 'batas_minimum', 'harga_beli', 'harga_jual', 'gambar', 'barangId']);
+        $this->tipe = 'ProdukJual';
+        $this->isEdit = false;
+        $this->showModal = true;
+    }
 
- if ($this->isEdit) {
- Barang::where('id', $this->barangId)->update([
- 'nama_barang' => $this->nama_barang,
- 'tipe' => $this->tipe,
- 'stok_sekarang' => $this->stok_sekarang,
- 'batas_minimum' => $this->batas_minimum,
- 'harga_beli' => $this->harga_beli,
- 'harga_jual' => $this->harga_jual,
- 'gambar' => $this->gambar,
- ]);
- } else {
- Barang::create([
- 'nama_barang' => $this->nama_barang,
- 'tipe' => $this->tipe,
- 'stok_sekarang' => $this->stok_sekarang,
- 'batas_minimum' => $this->batas_minimum,
- 'harga_beli' => $this->harga_beli,
- 'harga_jual' => $this->harga_jual,
- 'gambar' => $this->gambar,
- ]);
- }
+    public function edit($id) {
+        $this->resetValidation();
+        $barang = Barang::findOrFail($id);
+        $this->barangId = $barang->id;
+        $this->nama_barang = $barang->nama_barang;
+        $this->tipe = ($barang->tipe === 'BahanBaku' || $barang->tipe === 'Material Ops') ? 'BahanBaku' : 'ProdukJual';
+        $this->stok_sekarang = $barang->stok_sekarang;
+        $this->batas_minimum = $barang->batas_minimum;
+        $this->harga_beli = $barang->harga_beli;
+        $this->harga_jual = $barang->harga_jual;
+        $this->gambar = $barang->gambar;
+        
+        $this->isEdit = true;
+        $this->showModal = true;
+    }
 
- $this->showModal = false;
- session()->flash('message', 'Data barang berhasil disimpan.');
- }
+    public function save() {
+        $this->validate();
 
- public function delete($id) {
- Barang::findOrFail($id)->delete();
- session()->flash('message', 'Data barang berhasil dihapus.');
- }
+        try {
+            $normalizedTipe = ($this->tipe === 'BahanBaku' || $this->tipe === 'Material Ops') ? 'BahanBaku' : 'ProdukJual';
 
- public function with() {
- $query = Barang::query()
- ->when($this->search, function($q) {
- $q->where('nama_barang', 'like', '%'.$this->search.'%');
- })
- ->when($this->filterKategori !== 'all', function($q) {
- $q->where('tipe', $this->filterKategori);
- });
- 
- return [
- 'barangs' => $query->latest()->paginate(10)
- ];
- }
+            if ($this->isEdit) {
+                $barang = Barang::findOrFail($this->barangId);
+                $oldStok = $barang->stok_sekarang;
+                $barang->update([
+                    'nama_barang' => $this->nama_barang,
+                    'tipe' => $normalizedTipe,
+                    'stok_sekarang' => $this->stok_sekarang,
+                    'batas_minimum' => $this->batas_minimum,
+                    'harga_beli' => $this->harga_beli,
+                    'harga_jual' => $this->harga_jual,
+                    'gambar' => $this->gambar,
+                ]);
+
+                // Jika stok disesuaikan saat edit, catat mutasi otomatis
+                if ($this->stok_sekarang != $oldStok) {
+                    $diff = $this->stok_sekarang - $oldStok;
+                    LogStok::create([
+                        'barang_id' => $barang->id,
+                        'pencatat_id' => auth()->id() ?? 1,
+                        'tipe_log' => $diff > 0 ? 'Masuk' : 'KeluarManual',
+                        'qty_perubahan' => abs($diff),
+                        'stok_akhir' => $this->stok_sekarang,
+                        'keterangan' => 'Penyesuaian stok saat edit barang (' . ($diff > 0 ? '+' : '-') . abs($diff) . ')',
+                    ]);
+                }
+            } else {
+                $barang = Barang::create([
+                    'nama_barang' => $this->nama_barang,
+                    'tipe' => $normalizedTipe,
+                    'stok_sekarang' => $this->stok_sekarang,
+                    'batas_minimum' => $this->batas_minimum,
+                    'harga_beli' => $this->harga_beli,
+                    'harga_jual' => $this->harga_jual,
+                    'gambar' => $this->gambar,
+                ]);
+
+                if ($this->stok_sekarang > 0) {
+                    LogStok::create([
+                        'barang_id' => $barang->id,
+                        'pencatat_id' => auth()->id() ?? 1,
+                        'tipe_log' => 'Masuk',
+                        'qty_perubahan' => $this->stok_sekarang,
+                        'stok_akhir' => $this->stok_sekarang,
+                        'keterangan' => 'Stok awal barang baru',
+                    ]);
+                }
+            }
+
+            try {
+                app(\App\Services\GoogleSheetsService::class)->syncTable('barang');
+            } catch (\Throwable $e) {}
+
+            $this->showModal = false;
+            session()->flash('message', 'Data barang "' . $this->nama_barang . '" berhasil disimpan dan disinkronkan ke Google Spreadsheet.');
+        } catch (\Throwable $e) {
+            $this->addError('nama_barang', 'Gagal menyimpan barang: ' . $e->getMessage());
+        }
+    }
+
+    public function openMutasiModal($barangId, $jenis = 'masuk') {
+        $this->resetValidation();
+        $barang = Barang::findOrFail($barangId);
+        $this->mutasiBarangId = $barang->id;
+        $this->mutasiBarangNama = $barang->nama_barang;
+        $this->mutasiJenis = $jenis;
+        $this->mutasiJumlah = 1;
+        $this->mutasiKeterangan = '';
+        $this->showMutasiModal = true;
+    }
+
+    public function saveMutasi() {
+        $this->validate([
+            'mutasiBarangId' => 'required|exists:barang,id',
+            'mutasiJenis' => 'required|in:masuk,keluar',
+            'mutasiJumlah' => 'required|integer|min:1',
+            'mutasiKeterangan' => 'nullable|string|max:255',
+        ]);
+
+        try {
+            $barang = Barang::findOrFail($this->mutasiBarangId);
+
+            if ($this->mutasiJenis === 'masuk') {
+                $barang->stok_sekarang += $this->mutasiJumlah;
+                $tipeLog = 'Masuk';
+            } else {
+                if ($barang->stok_sekarang < $this->mutasiJumlah) {
+                    $this->addError('mutasiJumlah', 'Stok tidak mencukupi! Sisa stok ' . $barang->nama_barang . ' saat ini: ' . $barang->stok_sekarang . ' pcs.');
+                    return;
+                }
+                $barang->stok_sekarang -= $this->mutasiJumlah;
+                $tipeLog = 'KeluarManual';
+            }
+
+            $barang->save();
+
+            LogStok::create([
+                'barang_id' => $barang->id,
+                'pencatat_id' => auth()->id() ?? 1,
+                'tipe_log' => $tipeLog,
+                'qty_perubahan' => $this->mutasiJumlah,
+                'stok_akhir' => $barang->stok_sekarang,
+                'keterangan' => $this->mutasiKeterangan ?: ($tipeLog === 'Masuk' ? 'Restok barang masuk oleh owner' : 'Pengeluaran inventaris oleh owner'),
+            ]);
+
+            try {
+                app(\App\Services\GoogleSheetsService::class)->syncTable('barang');
+            } catch (\Throwable $e) {}
+
+            $this->showMutasiModal = false;
+            session()->flash('message', 'Mutasi ' . ($tipeLog === 'Masuk' ? 'pemasukan (+)' : 'pengeluaran (-)') . ' barang ' . $barang->nama_barang . ' sebanyak ' . $this->mutasiJumlah . ' pcs berhasil dicatat!');
+        } catch (\Throwable $e) {
+            $this->addError('mutasiJumlah', 'Gagal mencatat mutasi: ' . $e->getMessage());
+        }
+    }
+
+    public function delete($id) {
+        try {
+            $barang = Barang::findOrFail($id);
+            $nama = $barang->nama_barang;
+            $barang->delete();
+
+            try {
+                app(\App\Services\GoogleSheetsService::class)->syncTable('barang');
+            } catch (\Throwable $e) {}
+
+            session()->flash('message', 'Data barang "' . $nama . '" berhasil dihapus.');
+        } catch (\Throwable $e) {
+            session()->flash('error', 'Gagal menghapus barang: ' . $e->getMessage());
+        }
+    }
+
+    public function with() {
+        try {
+            if (!cache()->has('sheets_sync_barang_master')) {
+                app(\App\Services\GoogleSheetsService::class)->pullTable('barang');
+                cache()->put('sheets_sync_barang_master', true, now()->addSeconds(10));
+            }
+        } catch (\Throwable $e) {}
+
+        $query = Barang::query()
+            ->when($this->search, function($q) {
+                $q->where('nama_barang', 'like', '%'.$this->search.'%');
+            })
+            ->when($this->filterKategori !== 'all', function($q) {
+                $norm = ($this->filterKategori === 'BahanBaku' || $this->filterKategori === 'Material Ops') ? 'BahanBaku' : 'ProdukJual';
+                $q->where('tipe', $norm);
+            });
+        
+        return [
+            'barangs' => $query->latest()->paginate(10)
+        ];
+    }
 };
 ?>
 
-<div class="flex flex-col w-full space-y-8 relative text-on-surface">
- @if(session()->has('message'))
- <div class="mb-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-4 rounded-xl flex items-center justify-between">
- <span>{{ session('message') }}</span>
- </div>
- @endif
+<div class="flex flex-col w-full space-y-6 relative text-on-surface" wire:poll.10s>
+    @if(session()->has('message'))
+        <div class="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 p-4 rounded-2xl flex items-center justify-between shadow-sm">
+            <div class="flex items-center gap-3">
+                <span class="material-symbols-outlined text-xl">check_circle</span>
+                <span class="text-sm font-medium">{{ session('message') }}</span>
+            </div>
+            <button type="button" onclick="this.parentElement.remove()" class="text-emerald-400/60 hover:text-emerald-400">
+                <span class="material-symbols-outlined text-sm">close</span>
+            </button>
+        </div>
+    @endif
 
- <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 lg:gap-5 mb-8">
- <div>
- <h1 class="font-headline-xl text-primary-fixed mb-2 tracking-tight text-headline-xl">Kelola Data Barang &amp; Inventaris</h1>
- <p class="font-body-lg text-body-lg text-on-surface-variant max-w-2xl">Atur stok produk retail dan material operasional barbershop.</p>
- </div>
- <button wire:click="create" class="bg-primary text-on-primary hover:bg-primary-fixed hover:scale-105 active:scale-95 transition-all duration-300 font-label-md text-label-md px-4 lg:px-5 py-3 rounded-full flex items-center gap-2 shadow-lg shadow-primary/20">
- <span class="material-symbols-outlined text-[20px]">add</span>
- Tambah Barang Baru
- </button>
- </div>
- 
- <div class="bg-surface-container-high rounded-3xl p-4 lg:p-5 shadow-xl flex flex-col gap-4 lg:gap-5 relative overflow-hidden group">
- <div class="absolute -top-32 -right-32 w-56 h-56 bg-primary/5 rounded-full blur-3xl group-hover:bg-primary/10 transition-colors duration-700 pointer-events-none"></div>
- <div class="flex flex-col md:flex-row justify-between gap-4 items-center z-10">
- <div class="flex-1 w-full max-w-md relative group/search">
- <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within/search:text-primary transition-colors">search</span>
- <input wire:model.live.debounce.300ms="search" class="w-full bg-surface-container text-on-surface placeholder:text-on-surface-variant rounded-xl pl-12 pr-4 py-3 outline-none border border-transparent focus:border-primary transition-colors font-body-md shadow-inner" placeholder="Cari nama barang..." type="text">
- </div>
- <div class="flex items-center gap-4 w-full md:w-auto">
- <div class="relative">
- <select wire:model.live="filterKategori" class="flex items-center gap-2 bg-surface-container hover:bg-surface-container-highest text-on-surface font-label-md px-5 py-3 rounded-xl transition-colors border border-transparent hover:border-outline-variant outline-none cursor-pointer appearance-none">
- <option value="all">Semua Kategori</option>
- <option value="Produk Jual">Produk Jual</option>
- <option value="Material Ops">Material Ops</option>
- </select>
- </div>
- </div>
- </div>
- 
- <div class="overflow-x-auto rounded-2xl bg-surface-container/50 border-none z-10 backdrop-blur-sm">
- <table class="w-full text-left border-collapse whitespace-nowrap">
- <thead>
- <tr class="text-on-surface-variant font-label-md uppercase tracking-wider text-[11px] bg-surface-container/80">
- <th class="px-4 lg:px-5 py-5 rounded-tl-2xl font-semibold">Kode</th>
- <th class="px-4 lg:px-5 py-5 font-semibold">Nama Barang</th>
- <th class="px-4 lg:px-5 py-5 font-semibold">Kategori</th>
- <th class="px-4 lg:px-5 py-5 font-semibold">Stok Saat Ini</th>
- <th class="px-4 lg:px-5 py-5 font-semibold">Harga Jual</th>
- <th class="px-4 lg:px-5 py-5 text-right rounded-tr-2xl font-semibold">Aksi</th>
- </tr>
- </thead>
- <tbody class="text-on-surface font-body-md divide-y divide-surface-container/30">
- @forelse($barangs as $barang)
- <tr class="hover:bg-surface-container-highest/50 transition-colors group/row {{ $barang->stok_sekarang <= $barang->batas_minimum ? 'bg-error/5' : '' }}">
- <td class="px-4 lg:px-5 py-5 font-mono text-primary-fixed/80">#BRG-{{ str_pad($barang->id, 3, '0', STR_PAD_LEFT) }}</td>
- <td class="px-4 lg:px-5 py-5 font-medium flex items-center gap-3">
- <div class="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-primary shrink-0 overflow-hidden relative border border-white/10">
- @if($barang->gambar_url)
- <img src="{{ $barang->gambar_url }}" alt="{{ $barang->nama_barang }}" class="w-full h-full object-cover">
- @else
- <span class="material-symbols-outlined text-primary/50">inventory_2</span>
- @endif
- </div>
- {{ $barang->nama_barang }}
- </td>
- <td class="px-4 lg:px-5 py-5">
- @if($barang->tipe === 'Produk Jual')
- <span class="px-3 py-1 bg-secondary-container/40 text-secondary-fixed rounded-full text-[11px] font-label-md inline-block border border-secondary-container">Produk Jual</span>
- @else
- <span class="px-3 py-1 bg-tertiary-container/30 text-tertiary-fixed rounded-full text-[11px] font-label-md inline-block border border-tertiary-container/50">Material Ops</span>
- @endif
- </td>
- <td class="px-4 lg:px-5 py-5 font-mono flex items-center gap-2 {{ $barang->stok_sekarang <= $barang->batas_minimum ? 'text-error font-semibold' : '' }}">
- {{ $barang->stok_sekarang }} <span class="text-on-surface-variant text-sm">Pcs</span>
- @if($barang->stok_sekarang <= $barang->batas_minimum)
- <span class="material-symbols-outlined text-[16px] animate-pulse">warning</span>
- @endif
- </td>
- <td class="px-4 lg:px-5 py-5 font-mono text-tertiary-fixed">
- @if($barang->harga_jual > 0)
- Rp {{ number_format($barang->harga_jual, 0, ',', '.') }}
- @else
- <span class="text-on-surface-variant/50">-</span>
- @endif
- </td>
- <td class="px-4 lg:px-5 py-5 text-right">
- <div class="flex items-center justify-end gap-2 opacity-0 group-hover/row:opacity-100 transition-opacity">
- <button wire:click="edit({{ $barang->id }})" class="p-2 text-secondary hover:text-secondary-fixed hover:bg-secondary-container/50 rounded-lg transition-colors" title="Edit">
- <span class="material-symbols-outlined text-[20px]">edit</span>
- </button>
- <button wire:click="delete({{ $barang->id }})" onclick="confirm('Yakin ingin menghapus barang ini?') || event.stopImmediatePropagation()" class="p-2 text-error hover:text-error-container hover:bg-error-container/20 rounded-lg transition-colors" title="Hapus">
- <span class="material-symbols-outlined text-[20px]">delete</span>
- </button>
- </div>
- </td>
- </tr>
- @empty
- <tr>
- <td colspan="6" class="px-4 lg:px-5 py-5 lg:py-5 text-center text-on-surface-variant">Belum ada data barang.</td>
- </tr>
- @endforelse
- </tbody>
- </table>
- </div>
- <div class="flex flex-col sm:flex-row justify-between items-center mt-2 pt-4 border-t border-surface-container z-10 gap-4">
- {{ $barangs->links() }}
- </div>
- </div>
+    @if(session()->has('error'))
+        <div class="bg-rose-500/10 border border-rose-500/30 text-rose-400 p-4 rounded-2xl flex items-center justify-between shadow-sm">
+            <div class="flex items-center gap-3">
+                <span class="material-symbols-outlined text-xl">error</span>
+                <span class="text-sm font-medium">{{ session('error') }}</span>
+            </div>
+            <button type="button" onclick="this.parentElement.remove()" class="text-rose-400/60 hover:text-rose-400">
+                <span class="material-symbols-outlined text-sm">close</span>
+            </button>
+        </div>
+    @endif
 
- <!-- Modal Form -->
- @if($showModal)
- <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
- <div class="bg-surface-container rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-white/10 max-h-[90vh] overflow-y-auto">
- <div class="px-4 lg:px-5 py-4 border-b border-white/10 flex justify-between items-center bg-surface-container-lowest sticky top-0 z-10">
- <h3 class="font-headline-md text-on-surface text-headline-md">{{ $isEdit ? 'Edit Barang' : 'Tambah Barang Baru' }}</h3>
- <button wire:click="$set('showModal', false)" class="text-on-surface-variant hover:text-error transition-colors">
- <span class="material-symbols-outlined">close</span>
- </button>
- </div>
- <form wire:submit="save" class="p-4 lg:p-5 space-y-4">
- <div class="space-y-2">
- <label class="block font-label-md text-label-md text-on-surface">Nama Barang</label>
- <input wire:model="nama_barang" type="text" class="w-full bg-background rounded-xl py-3 px-4 font-body-md text-body-md text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
- @error('nama_barang') <span class="text-error text-sm">{{ $message }}</span> @enderror
- </div>
- 
- <div class="space-y-2">
- <label class="block font-label-md text-label-md text-on-surface">Path / URL Gambar (Opsional)</label>
- <input wire:model="gambar" type="text" class="w-full bg-background rounded-xl py-3 px-4 font-body-md text-body-md text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" placeholder="e.g. images/barang/pomade-oil.jpg">
- @error('gambar') <span class="text-error text-sm">{{ $message }}</span> @enderror
- </div>
+    <!-- Header & Action Buttons -->
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+        <div>
+            <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary text-2xl">inventory_2</span>
+                <h1 class="font-headline-xl text-on-background text-2xl lg:text-3xl font-bold tracking-tight">Kelola Data Barang &amp; Inventaris</h1>
+            </div>
+            <p class="font-body-md text-sm text-on-surface-variant mt-1">Atur stok produk retail dan material operasional barbershop.</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <button wire:click="syncFromSheets" wire:loading.attr="disabled"
+                class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-surface-container-high hover:bg-surface-bright text-primary border border-primary/30 transition shadow-sm text-xs font-semibold cursor-pointer">
+                <span wire:loading.remove wire:target="syncFromSheets" class="material-symbols-outlined text-base">sync</span>
+                <span wire:loading wire:target="syncFromSheets" class="material-symbols-outlined text-base animate-spin">refresh</span>
+                <span>Sinkron Dari Sheets</span>
+            </button>
+            <button wire:click="create" class="bg-primary text-on-primary hover:bg-primary-fixed hover:scale-105 active:scale-95 transition-all font-semibold text-xs px-4 lg:px-5 py-2.5 rounded-xl flex items-center gap-2 shadow-md shadow-primary/20 cursor-pointer">
+                <span class="material-symbols-outlined text-base">add</span>
+                <span>Tambah Barang Baru</span>
+            </button>
+        </div>
+    </div>
+    
+    <!-- Filter & Search Bar -->
+    <div class="bg-surface-container-high rounded-2xl p-4 shadow-sm flex flex-col md:flex-row justify-between gap-4 items-center border border-outline-variant/30">
+        <div class="flex-1 w-full max-w-md relative group/search">
+            <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-lg">search</span>
+            <input wire:model.live.debounce.300ms="search" class="w-full bg-surface-container text-on-surface placeholder:text-on-surface-variant rounded-xl pl-10 pr-4 py-2.5 outline-none border border-outline-variant/30 focus:border-primary transition-colors text-sm" placeholder="Cari nama barang..." type="text">
+        </div>
+        <div class="flex items-center gap-3 w-full md:w-auto">
+            <select wire:model.live="filterKategori" class="bg-surface-container hover:bg-surface-container-highest text-on-surface text-xs font-semibold px-4 py-2.5 rounded-xl transition-colors border border-outline-variant/30 outline-none cursor-pointer">
+                <option value="all">Semua Kategori</option>
+                <option value="ProdukJual">Produk Jual (Retail)</option>
+                <option value="BahanBaku">Material Operasional</option>
+            </select>
+        </div>
+    </div>
+    
+    <!-- Table Barang -->
+    <div class="overflow-x-auto rounded-2xl bg-surface-container shadow-md border border-outline-variant/30">
+        <table class="w-full text-left border-collapse whitespace-nowrap min-w-[900px]">
+            <thead>
+                <tr class="text-on-surface-variant text-xs uppercase tracking-wider bg-surface-container-highest font-semibold border-b border-outline-variant/20">
+                    <th class="px-5 py-4">Kode</th>
+                    <th class="px-5 py-4">Nama Barang</th>
+                    <th class="px-5 py-4">Kategori</th>
+                    <th class="px-5 py-4">Stok Saat Ini</th>
+                    <th class="px-5 py-4">Harga Beli</th>
+                    <th class="px-5 py-4">Harga Jual</th>
+                    <th class="px-5 py-4 text-center">Aksi Cepat Mutasi</th>
+                    <th class="px-5 py-4 text-right">Kelola</th>
+                </tr>
+            </thead>
+            <tbody class="text-on-surface text-sm divide-y divide-outline-variant/10">
+                @forelse($barangs as $barang)
+                    @php
+                        $isLow = $barang->stok_sekarang <= $barang->batas_minimum;
+                    @endphp
+                    <tr class="hover:bg-surface-container-highest/40 transition-colors {{ $isLow ? 'bg-amber-500/5' : '' }}">
+                        <td class="px-5 py-4 font-mono text-primary text-xs">#BRG-{{ str_pad($barang->id, 3, '0', STR_PAD_LEFT) }}</td>
+                        <td class="px-5 py-4 font-medium flex items-center gap-3">
+                            <div class="w-9 h-9 rounded-lg bg-surface-container-highest flex items-center justify-center text-primary shrink-0 overflow-hidden border border-outline-variant/30">
+                                @if($barang->gambar_url)
+                                    <img src="{{ $barang->gambar_url }}" alt="{{ $barang->nama_barang }}" class="w-full h-full object-cover">
+                                @else
+                                    <span class="material-symbols-outlined text-primary/60 text-lg">inventory_2</span>
+                                @endif
+                            </div>
+                            <span class="font-semibold">{{ $barang->nama_barang }}</span>
+                        </td>
+                        <td class="px-5 py-4">
+                            @if($barang->tipe === 'ProdukJual' || $barang->tipe === 'Produk Jual')
+                                <span class="px-2.5 py-0.5 bg-blue-500/15 text-blue-400 rounded-full text-xs font-semibold border border-blue-500/30">Produk Jual</span>
+                            @else
+                                <span class="px-2.5 py-0.5 bg-purple-500/15 text-purple-400 rounded-full text-xs font-semibold border border-purple-500/30">Material Ops</span>
+                            @endif
+                        </td>
+                        <td class="px-5 py-4 font-mono">
+                            <div class="flex items-center gap-1.5 {{ $isLow ? 'text-amber-400 font-bold' : '' }}">
+                                <span class="text-base">{{ $barang->stok_sekarang }}</span>
+                                <span class="text-xs text-on-surface-variant font-sans">Pcs (Min: {{ $barang->batas_minimum }})</span>
+                                @if($isLow)
+                                    <span class="material-symbols-outlined text-sm text-amber-400" title="Stok Menipis!">warning</span>
+                                @endif
+                            </div>
+                        </td>
+                        <td class="px-5 py-4 font-mono text-xs text-on-surface-variant">
+                            Rp {{ number_format($barang->harga_beli, 0, ',', '.') }}
+                        </td>
+                        <td class="px-5 py-4 font-mono text-xs font-semibold text-primary">
+                            @if($barang->harga_jual > 0)
+                                Rp {{ number_format($barang->harga_jual, 0, ',', '.') }}
+                            @else
+                                <span class="text-on-surface-variant/50">-</span>
+                            @endif
+                        </td>
+                        <!-- Aksi Cepat Mutasi (Masuk & Keluar Langsung) -->
+                        <td class="px-5 py-4 text-center">
+                            <div class="inline-flex items-center gap-1.5">
+                                <button wire:click="openMutasiModal({{ $barang->id }}, 'masuk')" title="Input Barang Masuk (Restok)"
+                                    class="px-2.5 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 text-xs font-semibold flex items-center gap-1 transition cursor-pointer">
+                                    <span class="material-symbols-outlined text-sm">add_circle</span>
+                                    <span>Masuk</span>
+                                </button>
+                                <button wire:click="openMutasiModal({{ $barang->id }}, 'keluar')" title="Input Barang Keluar (Pengeluaran)"
+                                    class="px-2.5 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 text-xs font-semibold flex items-center gap-1 transition cursor-pointer">
+                                    <span class="material-symbols-outlined text-sm">remove_circle</span>
+                                    <span>Keluar</span>
+                                </button>
+                            </div>
+                        </td>
+                        <td class="px-5 py-4 text-right">
+                            <div class="flex items-center justify-end gap-1.5">
+                                <button wire:click="edit({{ $barang->id }})" class="p-1.5 text-secondary hover:text-primary hover:bg-surface-container-highest rounded-lg transition-colors cursor-pointer" title="Edit Barang">
+                                    <span class="material-symbols-outlined text-lg">edit</span>
+                                </button>
+                                <button wire:click="delete({{ $barang->id }})" onclick="confirm('Yakin ingin menghapus barang ini?') || event.stopImmediatePropagation()" class="p-1.5 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer" title="Hapus Barang">
+                                    <span class="material-symbols-outlined text-lg">delete</span>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="8" class="px-5 py-10 text-center text-on-surface-variant text-sm">Belum ada data barang.</td>
+                    </tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
 
- <div class="space-y-2">
- <label class="block font-label-md text-label-md text-on-surface">Kategori / Tipe</label>
- <select wire:model="tipe" class="w-full bg-background rounded-xl py-3 px-4 font-body-md text-body-md text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors cursor-pointer" required>
- <option value="Produk Jual">Produk Jual (Eceran)</option>
- <option value="Material Ops">Material Operasional</option>
- </select>
- @error('tipe') <span class="text-error text-sm">{{ $message }}</span> @enderror
- </div>
+    <div class="mt-4">
+        {{ $barangs->links() }}
+    </div>
 
- <div class="flex gap-4">
- <div class="space-y-2 flex-1">
- <label class="block font-label-md text-label-md text-on-surface">Stok Awal</label>
- <input wire:model="stok_sekarang" type="number" min="0" class="w-full bg-background rounded-xl py-3 px-4 font-body-md text-body-md text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
- @error('stok_sekarang') <span class="text-error text-sm">{{ $message }}</span> @enderror
- </div>
- <div class="space-y-2 flex-1">
- <label class="block font-label-md text-label-md text-on-surface">Batas Minimum (Alert)</label>
- <input wire:model="batas_minimum" type="number" min="0" class="w-full bg-background rounded-xl py-3 px-4 font-body-md text-body-md text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
- @error('batas_minimum') <span class="text-error text-sm">{{ $message }}</span> @enderror
- </div>
- </div>
+    <!-- Modal Form Tambah / Edit Barang -->
+    @if($showModal)
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div class="bg-surface-container rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-outline-variant/30 max-h-[90vh] overflow-y-auto">
+                <div class="px-5 py-4 border-b border-outline-variant/20 flex justify-between items-center bg-surface-container-lowest sticky top-0 z-10">
+                    <h3 class="font-bold text-base text-on-surface">{{ $isEdit ? 'Edit Data Barang' : 'Tambah Barang Baru' }}</h3>
+                    <button wire:click="$set('showModal', false)" class="text-on-surface-variant hover:text-error transition-colors cursor-pointer">
+                        <span class="material-symbols-outlined text-xl">close</span>
+                    </button>
+                </div>
+                <form wire:submit="save" class="p-5 space-y-4">
+                    <div class="space-y-1.5">
+                        <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Nama Barang</label>
+                        <input wire:model="nama_barang" type="text" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
+                        @error('nama_barang') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
+                    </div>
+                    
+                    <div class="space-y-1.5">
+                        <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Path / URL Gambar (Opsional)</label>
+                        <input wire:model="gambar" type="text" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" placeholder="e.g. images/barang/pomade-oil.jpg">
+                        @error('gambar') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
+                    </div>
 
- <div class="flex gap-4">
- <div class="space-y-2 flex-1">
- <label class="block font-label-md text-label-md text-on-surface">Harga Beli / Modal</label>
- <input wire:model="harga_beli" type="number" min="0" class="w-full bg-background rounded-xl py-3 px-4 font-body-md text-body-md text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
- @error('harga_beli') <span class="text-error text-sm">{{ $message }}</span> @enderror
- </div>
- <div class="space-y-2 flex-1">
- <label class="block font-label-md text-label-md text-on-surface">Harga Jual</label>
- <input wire:model="harga_jual" type="number" min="0" class="w-full bg-background rounded-xl py-3 px-4 font-body-md text-body-md text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
- <p class="text-label-sm text-on-surface-variant mt-1">Kosongkan/0 jika hanya material ops.</p>
- @error('harga_jual') <span class="text-error text-sm">{{ $message }}</span> @enderror
- </div>
- </div>
- 
- <div class="pt-6 flex justify-end gap-3 border-t border-white/10 mt-6">
- <button type="button" wire:click="$set('showModal', false)" class="px-4 lg:px-5 py-2.5 rounded-full font-label-md text-label-md text-on-surface-variant hover:bg-surface-container-highest transition-colors">Batal</button>
- <button type="submit" class="px-4 lg:px-5 py-2.5 rounded-full font-label-md text-label-md bg-primary text-on-primary hover:bg-primary-container hover:text-on-primary-container transition-colors shadow-lg shadow-primary/20">
- <span wire:loading.remove wire:target="save">Simpan Barang</span>
- <span wire:loading wire:target="save">Menyimpan...</span>
- </button>
- </div>
- </form>
- </div>
- </div>
- @endif
+                    <div class="space-y-1.5">
+                        <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Kategori / Tipe Barang</label>
+                        <select wire:model="tipe" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors cursor-pointer" required>
+                            <option value="ProdukJual">Produk Jual (Retail / Eceran)</option>
+                            <option value="BahanBaku">Material Operasional (Bahan Baku / Ekstra Salon)</option>
+                        </select>
+                        @error('tipe') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="space-y-1.5">
+                            <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Stok Barang</label>
+                            <input wire:model="stok_sekarang" type="number" min="0" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
+                            @error('stok_sekarang') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
+                        </div>
+                        <div class="space-y-1.5">
+                            <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Batas Minimum (Alert)</label>
+                            <input wire:model="batas_minimum" type="number" min="0" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
+                            @error('batas_minimum') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="space-y-1.5">
+                            <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Harga Beli / Modal (Rp)</label>
+                            <input wire:model="harga_beli" type="number" min="0" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
+                            @error('harga_beli') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
+                        </div>
+                        <div class="space-y-1.5">
+                            <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Harga Jual (Rp)</label>
+                            <input wire:model="harga_jual" type="number" min="0" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
+                            <p class="text-[11px] text-on-surface-variant">Isi 0 jika material internal ops.</p>
+                            @error('harga_jual') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
+                        </div>
+                    </div>
+                    
+                    <div class="pt-4 flex justify-end gap-3 border-t border-outline-variant/20 mt-6">
+                        <button type="button" wire:click="$set('showModal', false)" class="px-4 py-2 rounded-xl text-xs font-semibold text-on-surface-variant hover:bg-surface-container-highest transition-colors cursor-pointer">Batal</button>
+                        <button type="submit" wire:loading.attr="disabled" class="px-5 py-2 rounded-xl text-xs font-semibold bg-primary text-on-primary hover:bg-primary-container hover:text-on-primary-container transition-colors shadow-md shadow-primary/20 cursor-pointer">
+                            <span wire:loading.remove wire:target="save">Simpan Barang</span>
+                            <span wire:loading wire:target="save">Menyimpan...</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    @endif
+
+    <!-- Modal Form Cepat Mutasi Masuk / Keluar Barang -->
+    @if($showMutasiModal)
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div class="bg-surface-container rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-outline-variant/30 animate-[scale-up_0.2s_ease-out]">
+                <div class="px-5 py-4 border-b border-outline-variant/20 flex justify-between items-center bg-surface-container-lowest sticky top-0 z-10">
+                    <div class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary text-xl">swap_horiz</span>
+                        <h3 class="font-bold text-base text-on-surface">Input Mutasi: {{ $mutasiBarangNama }}</h3>
+                    </div>
+                    <button wire:click="$set('showMutasiModal', false)" class="text-on-surface-variant hover:text-error transition-colors cursor-pointer">
+                        <span class="material-symbols-outlined text-xl">close</span>
+                    </button>
+                </div>
+                <form wire:submit="saveMutasi" class="p-5 space-y-4">
+                    <div class="space-y-1.5">
+                        <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Jenis Mutasi</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="cursor-pointer">
+                                <input wire:model.live="mutasiJenis" value="masuk" class="peer sr-only" type="radio">
+                                <div class="py-2.5 px-3 rounded-xl border border-outline-variant/30 bg-surface-container text-on-surface text-center hover:bg-surface-container-high transition-colors text-xs font-semibold peer-checked:border-emerald-500 peer-checked:bg-emerald-500/15 peer-checked:text-emerald-400 flex items-center justify-center gap-1.5">
+                                    <span class="material-symbols-outlined text-sm">add_circle</span>
+                                    <span>Barang Masuk (+)</span>
+                                </div>
+                            </label>
+                            <label class="cursor-pointer">
+                                <input wire:model.live="mutasiJenis" value="keluar" class="peer sr-only" type="radio">
+                                <div class="py-2.5 px-3 rounded-xl border border-outline-variant/30 bg-surface-container text-on-surface text-center hover:bg-surface-container-high transition-colors text-xs font-semibold peer-checked:border-rose-500 peer-checked:bg-rose-500/15 peer-checked:text-rose-400 flex items-center justify-center gap-1.5">
+                                    <span class="material-symbols-outlined text-sm">remove_circle</span>
+                                    <span>Barang Keluar (-)</span>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Jumlah (Qty / Pcs)</label>
+                        <input wire:model="mutasiJumlah" type="number" min="1" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
+                        @error('mutasiJumlah') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Keterangan / Alasan (Opsional)</label>
+                        <textarea wire:model="mutasiKeterangan" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" rows="2" placeholder="Cth: Restok dari suplier, pemakaian salon, barang rusak, dll."></textarea>
+                        @error('mutasiKeterangan') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
+                    </div>
+
+                    <div class="pt-4 flex justify-end gap-3 border-t border-outline-variant/20 mt-6">
+                        <button type="button" wire:click="$set('showMutasiModal', false)" class="px-4 py-2 rounded-xl text-xs font-semibold text-on-surface-variant hover:bg-surface-container-highest transition-colors cursor-pointer">Batal</button>
+                        <button type="submit" wire:loading.attr="disabled" class="px-5 py-2 rounded-xl text-xs font-semibold bg-primary text-on-primary hover:bg-primary-container hover:text-on-primary-container transition-colors shadow-md shadow-primary/20 cursor-pointer">
+                            <span wire:loading.remove wire:target="saveMutasi">Simpan Mutasi</span>
+                            <span wire:loading wire:target="saveMutasi">Menyimpan...</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    @endif
 </div>
-

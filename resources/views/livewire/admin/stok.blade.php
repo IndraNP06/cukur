@@ -73,41 +73,45 @@ new #[Layout('components.layouts.admin')] #[Title('Lapor Ekstra Barang & Mutasi 
     public function save() {
         $this->validate();
 
-        $barang = Barang::findOrFail($this->barang_id);
-
-        if ($this->jenis_mutasi === 'masuk') {
-            $barang->stok_sekarang += $this->jumlah;
-            $tipeLog = 'Masuk';
-        } elseif ($this->jenis_mutasi === 'keluar') {
-            if ($barang->stok_sekarang < $this->jumlah) {
-                $this->addError('jumlah', 'Stok tidak mencukupi! Sisa stok ' . $barang->nama_barang . ' saat ini hanya ' . $barang->stok_sekarang . '.');
-                return;
-            }
-            $barang->stok_sekarang -= $this->jumlah;
-            $tipeLog = 'KeluarManual';
-        } else {
-            $tipeLog = 'Opname';
-        }
-
-        $barang->save();
-
-        LogStok::create([
-            'barang_id' => $this->barang_id,
-            'pencatat_id' => auth()->id(),
-            'tipe_log' => $tipeLog,
-            'qty_perubahan' => $this->jumlah,
-            'stok_akhir' => $barang->stok_sekarang,
-            'keterangan' => $this->keterangan ?: ($tipeLog === 'Masuk' ? 'Restok / Pemasukan manual' : 'Lapor ekstra / Pengeluaran kapster'),
-        ]);
-
-        // Sinkronkan ke Google Spreadsheet
         try {
-            app(\App\Services\GoogleSheetsService::class)->syncTable('barang');
-        } catch (\Throwable $e) {}
+            $barang = Barang::findOrFail($this->barang_id);
 
-        $this->showModal = false;
-        $this->reset(['barang_id', 'jenis_mutasi', 'jumlah', 'keterangan']);
-        session()->flash('message', 'Laporan mutasi ' . ($tipeLog === 'Masuk' ? 'pemasukan' : 'pengeluaran') . ' barang (' . $barang->nama_barang . ') berhasil dicatat dan disinkronkan ke Google Spreadsheet!');
+            if ($this->jenis_mutasi === 'masuk') {
+                $barang->stok_sekarang += $this->jumlah;
+                $tipeLog = 'Masuk';
+            } elseif ($this->jenis_mutasi === 'keluar') {
+                if ($barang->stok_sekarang < $this->jumlah) {
+                    $this->addError('jumlah', 'Stok tidak mencukupi! Sisa stok ' . $barang->nama_barang . ' saat ini hanya ' . $barang->stok_sekarang . '.');
+                    return;
+                }
+                $barang->stok_sekarang -= $this->jumlah;
+                $tipeLog = 'KeluarManual';
+            } else {
+                $tipeLog = 'Opname';
+            }
+
+            $barang->save();
+
+            LogStok::create([
+                'barang_id' => $this->barang_id,
+                'pencatat_id' => auth()->id() ?? 1,
+                'tipe_log' => $tipeLog,
+                'qty_perubahan' => $this->jumlah,
+                'stok_akhir' => $barang->stok_sekarang,
+                'keterangan' => $this->keterangan ?: ($tipeLog === 'Masuk' ? 'Restok / Pemasukan manual' : 'Lapor ekstra / Pengeluaran manual'),
+            ]);
+
+            // Sinkronkan ke Google Spreadsheet
+            try {
+                app(\App\Services\GoogleSheetsService::class)->syncTable('barang');
+            } catch (\Throwable $e) {}
+
+            $this->showModal = false;
+            $this->reset(['barang_id', 'jenis_mutasi', 'jumlah', 'keterangan']);
+            session()->flash('message', 'Laporan mutasi ' . ($tipeLog === 'Masuk' ? 'pemasukan' : 'pengeluaran') . ' barang (' . $barang->nama_barang . ') berhasil dicatat dan disinkronkan ke Google Spreadsheet!');
+        } catch (\Throwable $e) {
+            $this->addError('jumlah', 'Gagal mencatat mutasi: ' . $e->getMessage());
+        }
     }
 
     public function with() {
