@@ -100,16 +100,31 @@ new #[Layout('components.layouts.customer')] #[Title('Booking Reservasi - Ran Cu
  $kapsterId = $kapster->id;
  }
 
- \App\Models\AntreanPemesanan::create([
- 'pelanggan_id' => auth()->id(),
- 'kapster_id' => $kapsterId,
- 'layanan_id' => $this->selectedLayanan,
- 'tipe_antrean' => 'Online',
- 'nomor_antrean' => 'ONL-' . strtoupper(\Illuminate\Support\Str::random(5)),
- 'tanggal' => $this->selectedDate,
- 'waktu_estimasi_mulai' => $this->selectedTime,
- 'status' => 'Menunggu'
- ]);
+        $booking = \App\Models\AntreanPemesanan::create([
+            'pelanggan_id' => auth()->id(),
+            'kapster_id' => $kapsterId,
+            'layanan_id' => $this->selectedLayanan,
+            'tipe_antrean' => 'Online',
+            'nomor_antrean' => 'ONL-' . strtoupper(\Illuminate\Support\Str::random(5)),
+            'tanggal' => $this->selectedDate,
+            'waktu_estimasi_mulai' => $this->selectedTime,
+            'status' => 'Menunggu'
+        ]);
+
+        try {
+            app(\App\Services\GoogleSheetsService::class)->appendRow('antrean_pemesanan', [
+                'id' => $booking->id,
+                'nomor_antrean' => $booking->nomor_antrean,
+                'pelanggan_id' => $booking->pelanggan_id,
+                'kapster_id' => $booking->kapster_id,
+                'layanan_id' => $booking->layanan_id,
+                'tipe_antrean' => $booking->tipe_antrean,
+                'tanggal' => $booking->tanggal,
+                'waktu_estimasi_mulai' => $booking->waktu_estimasi_mulai,
+                'status' => $booking->status,
+                'created_at' => now()->toDateTimeString(),
+            ]);
+        } catch (\Throwable $e) {}
  
  session()->flash('booking_success', 'Reservasi berhasil dibuat! Silakan datang tepat waktu.');
  return redirect('/');
