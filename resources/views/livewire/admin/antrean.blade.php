@@ -6,73 +6,90 @@ use Livewire\Volt\Component;
 use App\Models\AntreanPemesanan;
 use App\Models\User;
 use Carbon\Carbon;
-
 use App\Models\Layanan;
 use Illuminate\Support\Str;
 
 new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin')] class extends Component {
- public $filterKapster = 'all';
+    public $filterKapster = 'all';
+    public $filterTanggal = 'today'; // 'today', 'tomorrow', 'all', 'custom'
+    public $customTanggal = '';
 
- // Walk-In Modal
- public $showWalkInModal = false;
- public $walkInName = '';
- public $walkInLayanan = null;
- public $walkInKapster = null;
- public $walkInTime = null;
+    // Walk-In Modal
+    public $showWalkInModal = false;
+    public $walkInName = '';
+    public $walkInLayanan = null;
+    public $walkInKapster = null;
+    public $walkInTime = null;
 
- public function mount() {
- // Initialization if needed
- }
+    public function mount() {
+        if (auth()->check() && auth()->user()->role === 'Kapster') {
+            $this->filterKapster = (string)auth()->id();
+            $this->walkInKapster = auth()->id();
+        }
+    }
 
- public function startProcess($id) {
- $antrean = AntreanPemesanan::find($id);
- if ($antrean && $antrean->status === 'Menunggu') {
- $antrean->status = 'Diproses';
- $antrean->waktu_mulai_aktual = Carbon::now()->format('H:i:s');
- $antrean->save();
- }
- }
+    public function startProcess($id) {
+        $antrean = AntreanPemesanan::find($id);
+        if ($antrean && $antrean->status === 'Menunggu') {
+            $antrean->status = 'Diproses';
+            $antrean->waktu_mulai_aktual = Carbon::now()->format('H:i:s');
+            $antrean->save();
 
- public function finishProcess($id) {
- $antrean = AntreanPemesanan::find($id);
- if ($antrean && $antrean->status === 'Diproses') {
- $antrean->status = 'Selesai';
- $antrean->waktu_selesai_aktual = Carbon::now()->format('H:i:s');
- $antrean->save();
- }
- }
+            try {
+                app(\App\Services\GoogleSheetsService::class)->syncTable('antrean_pemesanan');
+            } catch (\Throwable $e) {}
+        }
+    }
 
- public function moveToKasir($id) {
- // Just redirect to POS with antrean_id
- return redirect()->route('admin.pos', ['antrean_id' => $id]);
- }
+    public function finishProcess($id) {
+        $antrean = AntreanPemesanan::find($id);
+        if ($antrean && $antrean->status === 'Diproses') {
+            $antrean->status = 'Selesai';
+            $antrean->waktu_selesai_aktual = Carbon::now()->format('H:i:s');
+            $antrean->save();
 
- public function saveWalkIn() {
- $this->validate([
- 'walkInName' => 'required|string|max:255',
- 'walkInLayanan' => 'required',
- 'walkInKapster' => 'required',
- 'walkInTime' => 'required'
- ]);
+            try {
+                app(\App\Services\GoogleSheetsService::class)->syncTable('antrean_pemesanan');
+            } catch (\Throwable $e) {}
+        }
+    }
 
- // Create dummy user for Walk-in
- $dummyEmail = 'walkin_' . time() . '_' . Str::random(5) . '@rancukurin.local';
- $user = User::create([
- 'nama' => $this->walkInName . ' (Walk-In)',
- 'email' => $dummyEmail,
- 'password' => bcrypt('password123'),
- ]);
- $user->assignRole('pelanggan');
+    public function moveToKasir($id) {
+        return redirect()->route('admin.pos', ['antrean_id' => $id]);
+    }
 
- $kapsterId = $this->walkInKapster;
- if ($kapsterId === 'any') {
- $kapster = User::whereHas('roles', function($q){$q->where('name', 'Kapster');})->inRandomOrder()->first();
- if (!$kapster) {
- $this->addError('walkInKapster', 'Mohon maaf, saat ini tidak ada kapster yang tersedia.');
- return;
- }
- $kapsterId = $kapster->id;
- }
+    public function saveWalkIn() {
+        $this->validate([
+            'walkInName' => 'required|string|max:255',
+            'walkInLayanan' => 'required',
+            'walkInKapster' => 'required',
+            'walkInTime' => 'required'
+        ]);
+
+        $dummyEmail = 'walkin_' . time() . '_' . Str::random(5) . '@rancukurin.local';
+        $user = User::create([
+            'nama' => $this->walkInName . ' (Walk-In)',
+            'email' => $dummyEmail,
+            'password' => bcrypt('password123'),
+        ]);
+        $user->assignRole('pelanggan');
+
+        $kapsterId = $this->walkInKapster;
+        if ($kapsterId === 'any') {
+            $kapster = User::whereHas('roles', function($q){$q->where('name', 'Kapster');})->inRandomOrder()->first();
+            if (!$kapster) {
+                $this->addError('walkInKapster', 'Mohon maaf, saat ini tidak ada kapster yang tersedia.');
+                return;
+            }
+            $kapsterId = $kapster->id;
+        }
+
+        $tanggalWalkIn = Carbon::today()->format('Y-m-d');
+        if ($this->filterTanggal === 'tomorrow') {
+            $tanggalWalkIn = Carbon::tomorrow()->format('Y-m-d');
+        } elseif ($this->filterTanggal === 'custom' && !empty($this->customTanggal)) {
+            $tanggalWalkIn = $this->customTanggal;
+        }
 
         $antrean = AntreanPemesanan::create([
             'pelanggan_id' => $user->id,
@@ -80,7 +97,7 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
             'layanan_id' => $this->walkInLayanan,
             'tipe_antrean' => 'WalkIn',
             'nomor_antrean' => 'WLK-' . strtoupper(Str::random(5)),
-            'tanggal' => Carbon::today()->format('Y-m-d'),
+            'tanggal' => $tanggalWalkIn,
             'waktu_estimasi_mulai' => $this->walkInTime,
             'status' => 'Menunggu'
         ]);
@@ -88,11 +105,11 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
         try {
             app(\App\Services\GoogleSheetsService::class)->appendRow('antrean_pemesanan', [
                 'id' => $antrean->id,
+                'nomor_antrean' => $antrean->nomor_antrean,
                 'pelanggan_id' => $antrean->pelanggan_id,
                 'kapster_id' => $antrean->kapster_id,
                 'layanan_id' => $antrean->layanan_id,
                 'tipe_antrean' => $antrean->tipe_antrean,
-                'nomor_antrean' => $antrean->nomor_antrean,
                 'tanggal' => $antrean->tanggal,
                 'waktu_estimasi_mulai' => $antrean->waktu_estimasi_mulai,
                 'status' => $antrean->status,
@@ -100,64 +117,132 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
             ]);
         } catch (\Throwable $e) {}
 
- $this->showWalkInModal = false;
- $this->reset(['walkInName', 'walkInLayanan', 'walkInKapster', 'walkInTime']);
- }
+        $this->showWalkInModal = false;
+        $this->reset(['walkInName', 'walkInLayanan', 'walkInTime']);
+        if (auth()->check() && auth()->user()->role === 'Kapster') {
+            $this->walkInKapster = auth()->id();
+        } else {
+            $this->reset('walkInKapster');
+        }
+    }
 
- public function with() {
- $query = AntreanPemesanan::with(['pelanggan', 'kapster', 'layanan'])
- ->whereDate('tanggal', Carbon::today());
+    public function with() {
+        $isKapster = auth()->check() && auth()->user()->role === 'Kapster';
+        if ($isKapster) {
+            $this->filterKapster = (string)auth()->id();
+        }
 
- if ($this->filterKapster !== 'all') {
- $query->where('kapster_id', $this->filterKapster);
- }
+        $query = AntreanPemesanan::with(['pelanggan', 'kapster', 'layanan']);
 
- $semuaAntrean = $query->orderBy('waktu_estimasi_mulai', 'asc')->get();
+        if ($this->filterTanggal === 'today') {
+            $query->whereDate('tanggal', Carbon::today());
+        } elseif ($this->filterTanggal === 'tomorrow') {
+            $query->whereDate('tanggal', Carbon::tomorrow());
+        } elseif ($this->filterTanggal === 'all') {
+            $query->whereDate('tanggal', '>=', Carbon::today());
+        } elseif ($this->filterTanggal === 'custom' && !empty($this->customTanggal)) {
+            $query->whereDate('tanggal', $this->customTanggal);
+        }
 
- return [
- 'kapsters' => User::whereHas('roles', function($q){$q->where('name', 'Kapster');})->get(),
- 'layanans' => Layanan::where('is_active', true)->get(),
- 'menunggu' => $semuaAntrean->where('status', 'Menunggu'),
- 'diproses' => $semuaAntrean->where('status', 'Diproses'),
- 'selesai' => $semuaAntrean->where('status', 'Selesai'),
- 'timeSlots' => [
- '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', 
- '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
- '15:00', '15:30', '16:00', '16:30', '17:00', '17:30',
- '18:00', '18:30', '19:00', '19:30', '20:00'
- ]
- ];
- }
+        if ($this->filterKapster !== 'all') {
+            $query->where('kapster_id', $this->filterKapster);
+        }
+
+        $semuaAntrean = $query->orderBy('tanggal', 'asc')->orderBy('waktu_estimasi_mulai', 'asc')->get();
+
+        return [
+            'isKapster' => $isKapster,
+            'kapsters' => User::whereHas('roles', function($q){$q->where('name', 'Kapster');})->get(),
+            'layanans' => Layanan::where('is_active', true)->get(),
+            'menunggu' => $semuaAntrean->where('status', 'Menunggu'),
+            'diproses' => $semuaAntrean->where('status', 'Diproses'),
+            'selesai' => $semuaAntrean->where('status', 'Selesai'),
+            'timeSlots' => [
+                '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', 
+                '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
+                '15:00', '15:30', '16:00', '16:30', '17:00', '17:30',
+                '18:00', '18:30', '19:00', '19:30', '20:00'
+            ]
+        ];
+    }
 };
 ?>
 
 <div class="flex flex-col w-full h-full min-h-full" wire:poll.5s>
- <!-- Top Control Bar -->
- <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
- <div>
- <h1 class="font-headline-lg text-on-surface mb-1 text-headline-lg">Papan Kerja Antrean</h1>
- <p class="font-body-md text-body-md text-on-surface-variant">Manajemen antrean pelanggan real-time (Hari ini).</p>
- </div>
- <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full md:w-auto">
- <!-- Filter -->
- <div class="relative min-w-[200px]">
- <select wire:model.live="filterKapster" class="w-full appearance-none bg-surface-container-high text-on-surface font-label-md text-label-md rounded-lg pl-4 pr-10 py-3 outline-none hover:bg-surface-container-highest transition-colors cursor-pointer">
- <option value="all">Semua Kapster</option>
- @foreach($kapsters as $k)
- <option value="{{ $k->id }}">{{ $k->nama }}</option>
- @endforeach
- </select>
- <div class="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-on-surface-variant">
- <span class="material-symbols-outlined text-[20px]">expand_more</span>
- </div>
- </div>
- <!-- Action Button -->
- <button wire:click="$set('showWalkInModal', true)" class="bg-primary hover:bg-primary-container text-on-primary font-label-md text-label-md rounded-lg px-4 lg:px-5 py-3 flex items-center justify-center gap-2 transition-all transform hover:scale-[1.02] active:scale-95 shadow-md shadow-primary/20">
- <span class="material-symbols-outlined text-[20px]">add</span>
- Input Walk-In
- </button>
- </div>
- </div>
+    <!-- Top Control Bar -->
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+        <div>
+            <h1 class="font-headline-lg text-on-surface mb-1 text-headline-lg font-bold">
+                @if($isKapster)
+                    Papan Job Saya ({{ auth()->user()->nama }})
+                @else
+                    Papan Kerja Antrean
+                @endif
+            </h1>
+            <p class="font-body-md text-body-md text-on-surface-variant text-sm">
+                @if($isKapster)
+                    Antrean giliran potong rambut khusus untuk job Anda secara real-time.
+                @else
+                    Manajemen antrean pelanggan real-time.
+                @endif
+            </p>
+        </div>
+
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+            <!-- Date Filter Pills -->
+            <div class="flex items-center gap-1 bg-surface-container-high p-1 rounded-xl border border-outline-variant/30 text-xs">
+                <button 
+                    wire:click="$set('filterTanggal', 'today')" 
+                    type="button" 
+                    class="px-3 py-1.5 rounded-lg font-semibold transition-all {{ $filterTanggal === 'today' ? 'bg-primary text-on-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface' }}">
+                    Hari Ini
+                </button>
+                <button 
+                    wire:click="$set('filterTanggal', 'tomorrow')" 
+                    type="button" 
+                    class="px-3 py-1.5 rounded-lg font-semibold transition-all {{ $filterTanggal === 'tomorrow' ? 'bg-primary text-on-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface' }}">
+                    Besok
+                </button>
+                <button 
+                    wire:click="$set('filterTanggal', 'all')" 
+                    type="button" 
+                    class="px-3 py-1.5 rounded-lg font-semibold transition-all {{ $filterTanggal === 'all' ? 'bg-primary text-on-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface' }}">
+                    Semua
+                </button>
+                <input 
+                    type="date" 
+                    wire:model.live="customTanggal" 
+                    wire:change="$set('filterTanggal', 'custom')"
+                    class="bg-surface-container text-on-surface text-xs rounded-lg px-2 py-1 border border-outline-variant/50 outline-none cursor-pointer">
+            </div>
+
+            <!-- Kapster Filter -->
+            @if($isKapster)
+                <div class="flex items-center gap-2 bg-primary/10 text-primary border border-primary/30 px-3.5 py-2.5 rounded-xl text-xs font-bold shrink-0">
+                    <span class="material-symbols-outlined text-base">badge</span>
+                    <span>Kapster: {{ auth()->user()->nama }}</span>
+                </div>
+            @else
+                <div class="relative min-w-[180px]">
+                    <select wire:model.live="filterKapster" class="w-full appearance-none bg-surface-container-high text-on-surface text-xs font-semibold rounded-xl pl-3.5 pr-8 py-3 outline-none hover:bg-surface-container-highest transition-colors cursor-pointer border border-outline-variant/30">
+                        <option value="all">Semua Kapster</option>
+                        @foreach($kapsters as $k)
+                            <option value="{{ $k->id }}">{{ $k->nama }}</option>
+                        @endforeach
+                    </select>
+                    <div class="absolute inset-y-0 right-0 flex items-center px-2.5 pointer-events-none text-on-surface-variant">
+                        <span class="material-symbols-outlined text-[18px]">expand_more</span>
+                    </div>
+                </div>
+            @endif
+
+            <!-- Action Button -->
+            <button wire:click="$set('showWalkInModal', true)" class="bg-primary hover:bg-primary-fixed text-on-primary text-xs font-bold rounded-xl px-4 py-3 flex items-center justify-center gap-1.5 transition-all shadow-md shadow-primary/20 shrink-0">
+                <span class="material-symbols-outlined text-[18px]">add</span>
+                <span>Input Walk-In</span>
+            </button>
+        </div>
+    </div>
 
  <!-- Kanban Board -->
  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-5 flex-1 min-h-[500px]">
@@ -306,6 +391,12 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
  </div>
  <div class="space-y-2 relative group">
  <label class="block font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Barber</label>
+ @if($isKapster)
+ <div class="w-full bg-surface-container text-on-surface font-body-md px-4 py-3 rounded-lg border border-surface-variant flex items-center justify-between text-sm">
+ <span>{{ auth()->user()->nama }}</span>
+ <span class="text-xs text-primary font-bold">(Anda)</span>
+ </div>
+ @else
  <select wire:model="walkInKapster" class="w-full bg-surface-container text-on-surface font-body-md px-4 py-3 rounded-lg border border-surface-variant focus:outline-none focus:border-primary transition-colors appearance-none">
  <option value="">Pilih Kapster</option>
  <option value="any">Siapa Saja</option>
@@ -313,6 +404,7 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
  <option value="{{ $k->id }}">{{ $k->nama }}</option>
  @endforeach
  </select>
+ @endif
  @error('walkInKapster') <span class="text-error text-sm">{{ $message }}</span> @enderror
  </div>
  </div>

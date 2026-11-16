@@ -8,66 +8,155 @@ use App\Models\User;
 use App\Models\AntreanPemesanan;
 
 new #[Layout('components.layouts.blank')] #[Title('Ran CukurIn - Precision in Every Cut')] class extends Component {
-   public function with() {
- $today = \Carbon\Carbon::today()->toDateString();
+    public $selectedKapsterId = 'all';
 
- // Live Antrean Data
- $antreanSaatIni = AntreanPemesanan::where('status', 'Diproses')
- ->whereDate('tanggal', $today)
- ->with(['layanan', 'kapster'])
- ->orderBy('waktu_mulai_aktual', 'desc')
- ->first();
+    public function with() {
+        $today = \Carbon\Carbon::today()->toDateString();
+        $kapsters = User::whereHas('roles', function($q){ $q->where('name', 'Kapster'); })->get();
 
- if (!$antreanSaatIni) {
- $antreanSaatIni = AntreanPemesanan::where('status', 'Diproses')
- ->with(['layanan', 'kapster'])
- ->orderBy('id', 'desc')
- ->first();
- }
+        // Status per Kapster untuk ringkasan
+        $kapsterStatuses = [];
+        foreach ($kapsters as $kap) {
+            $curr = AntreanPemesanan::where('kapster_id', $kap->id)
+                ->where('status', 'Diproses')
+                ->whereDate('tanggal', $today)
+                ->with('layanan')
+                ->orderBy('waktu_mulai_aktual', 'desc')
+                ->first();
+            if (!$curr) {
+                $curr = AntreanPemesanan::where('kapster_id', $kap->id)
+                    ->where('status', 'Diproses')
+                    ->with('layanan')
+                    ->orderBy('id', 'desc')
+                    ->first();
+            }
 
- $menungguCount = AntreanPemesanan::where('status', 'Menunggu')
- ->whereDate('tanggal', $today)
- ->count();
- if ($menungguCount === 0) {
- $menungguCount = AntreanPemesanan::where('status', 'Menunggu')->count();
- }
+            $waitCount = AntreanPemesanan::where('kapster_id', $kap->id)
+                ->where('status', 'Menunggu')
+                ->whereDate('tanggal', $today)
+                ->count();
+            if ($waitCount === 0) {
+                $waitCount = AntreanPemesanan::where('kapster_id', $kap->id)
+                    ->where('status', 'Menunggu')
+                    ->count();
+            }
 
- $ewtToko = AntreanPemesanan::hitungEwtToko();
- $ewt = $ewtToko;
+            $kapsterStatuses[$kap->id] = [
+                'kapster' => $kap,
+                'current' => $curr,
+                'waiting_count' => $waitCount,
+                'ewt' => AntreanPemesanan::hitungEwtKapster($kap->id),
+            ];
+        }
 
- $myActiveBooking = null;
- $mySisaDiDepan = 0;
- if (auth()->check()) {
- $myActiveBooking = AntreanPemesanan::where('pelanggan_id', auth()->id())
- ->whereIn('status', ['Menunggu', 'Diproses'])
- ->with(['layanan', 'kapster'])
- ->orderBy('created_at', 'desc')
- ->first();
+        // Data berdasarkan kapster yang dipilih
+        $activeKapster = null;
+        $daftarMenunggu = collect();
 
- if ($myActiveBooking) {
- $mySisaDiDepan = $myActiveBooking->sisa_antrean_di_depan;
- $ewt = $myActiveBooking->estimasi_tunggu_menit;
- }
- }
+        if ($this->selectedKapsterId !== 'all') {
+            $selectedId = (int)$this->selectedKapsterId;
+            $activeKapster = User::find($selectedId);
 
- $layanans = Layanan::where('is_active', true)->take(6)->get();
- $kapsters = User::whereHas('roles', function($q){$q->where('name', 'Kapster');})->take(4)->get();
- $banners = \App\Models\Banner::where('is_active', true)->orderBy('urutan')->get();
- $galeris = \App\Models\Galeri::where('is_active', true)->take(6)->get();
+            $antreanSaatIni = AntreanPemesanan::where('kapster_id', $selectedId)
+                ->where('status', 'Diproses')
+                ->whereDate('tanggal', $today)
+                ->with(['layanan', 'kapster'])
+                ->orderBy('waktu_mulai_aktual', 'desc')
+                ->first();
 
- return [
- 'antreanSaatIni' => $antreanSaatIni,
- 'menungguCount' => $menungguCount,
- 'ewt' => $ewt,
- 'ewtToko' => $ewtToko,
- 'myActiveBooking' => $myActiveBooking,
- 'mySisaDiDepan' => $mySisaDiDepan,
- 'layanans' => $layanans,
- 'kapsters' => $kapsters,
- 'banners' => $banners,
- 'galeris' => $galeris,
- ];
- }
+            if (!$antreanSaatIni) {
+                $antreanSaatIni = AntreanPemesanan::where('kapster_id', $selectedId)
+                    ->where('status', 'Diproses')
+                    ->with(['layanan', 'kapster'])
+                    ->orderBy('id', 'desc')
+                    ->first();
+            }
+
+            $menungguQuery = AntreanPemesanan::where('kapster_id', $selectedId)
+                ->where('status', 'Menunggu')
+                ->whereDate('tanggal', $today)
+                ->with('layanan')
+                ->orderBy('waktu_estimasi_mulai', 'asc');
+            
+            $menungguList = $menungguQuery->get();
+            if ($menungguList->isEmpty()) {
+                $menungguList = AntreanPemesanan::where('kapster_id', $selectedId)
+                    ->where('status', 'Menunggu')
+                    ->with('layanan')
+                    ->orderBy('waktu_estimasi_mulai', 'asc')
+                    ->get();
+            }
+
+            $menungguCount = $menungguList->count();
+            $daftarMenunggu = $menungguList->take(4);
+            $ewt = AntreanPemesanan::hitungEwtKapster($selectedId);
+        } else {
+            // Live Antrean Data Global
+            $antreanSaatIni = AntreanPemesanan::where('status', 'Diproses')
+                ->whereDate('tanggal', $today)
+                ->with(['layanan', 'kapster'])
+                ->orderBy('waktu_mulai_aktual', 'desc')
+                ->first();
+
+            if (!$antreanSaatIni) {
+                $antreanSaatIni = AntreanPemesanan::where('status', 'Diproses')
+                    ->with(['layanan', 'kapster'])
+                    ->orderBy('id', 'desc')
+                    ->first();
+            }
+
+            $menungguQuery = AntreanPemesanan::where('status', 'Menunggu')
+                ->whereDate('tanggal', $today)
+                ->with(['layanan', 'kapster'])
+                ->orderBy('waktu_estimasi_mulai', 'asc');
+
+            $menungguList = $menungguQuery->get();
+            if ($menungguList->isEmpty()) {
+                $menungguList = AntreanPemesanan::where('status', 'Menunggu')
+                    ->with(['layanan', 'kapster'])
+                    ->orderBy('waktu_estimasi_mulai', 'asc')
+                    ->get();
+            }
+
+            $menungguCount = $menungguList->count();
+            $daftarMenunggu = $menungguList->take(4);
+            $ewt = AntreanPemesanan::hitungEwtToko();
+        }
+
+        $myActiveBooking = null;
+        $mySisaDiDepan = 0;
+        if (auth()->check()) {
+            $myActiveBooking = AntreanPemesanan::where('pelanggan_id', auth()->id())
+                ->whereIn('status', ['Menunggu', 'Diproses'])
+                ->with(['layanan', 'kapster'])
+                ->orderBy('created_at', 'desc')
+                ->first();
+
+            if ($myActiveBooking) {
+                $mySisaDiDepan = $myActiveBooking->sisa_antrean_di_depan;
+                $ewt = $myActiveBooking->estimasi_tunggu_menit;
+            }
+        }
+
+        $layanans = Layanan::where('is_active', true)->take(6)->get();
+        $banners = \App\Models\Banner::where('is_active', true)->orderBy('urutan')->get();
+        $galeris = \App\Models\Galeri::where('is_active', true)->take(6)->get();
+
+        return [
+            'antreanSaatIni' => $antreanSaatIni,
+            'menungguCount' => $menungguCount,
+            'daftarMenunggu' => $daftarMenunggu,
+            'ewt' => $ewt,
+            'myActiveBooking' => $myActiveBooking,
+            'mySisaDiDepan' => $mySisaDiDepan,
+            'layanans' => $layanans,
+            'kapsters' => $kapsters,
+            'activeKapster' => $activeKapster,
+            'kapsterStatuses' => $kapsterStatuses,
+            'banners' => $banners,
+            'galeris' => $galeris,
+        ];
+    }
 };
 ?>
 
@@ -209,73 +298,211 @@ new #[Layout('components.layouts.blank')] #[Title('Ran CukurIn - Precision in Ev
  </div>
  </div>
  
- <div class="space-y-4 relative z-10">
- @if(isset($myActiveBooking) && $myActiveBooking)
- <!-- Personalized Active Booking Card for Logged In Customer -->
- <div class="bg-primary/10 border border-primary/30 rounded-xl p-4 flex flex-col gap-2">
- <div class="flex items-center justify-between">
- <span class="font-label-sm text-primary uppercase font-bold tracking-wider text-xs flex items-center gap-1.5">
- <span class="w-2 h-2 rounded-full bg-primary animate-ping"></span>
- Tiket Antrean Anda
- </span>
- <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold {{ $myActiveBooking->status === 'Diproses' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-primary/20 text-primary border border-primary/30' }}">
- {{ $myActiveBooking->status }}
- </span>
- </div>
- <div class="flex items-baseline justify-between">
- <span class="font-headline-lg text-2xl font-bold text-on-surface">{{ $myActiveBooking->nomor_antrean }}</span>
- @if($myActiveBooking->status === 'Diproses')
- <span class="text-xs text-emerald-400 font-semibold">Sedang dilayani sekarang!</span>
- @else
- <span class="text-xs text-primary font-medium">{{ $mySisaDiDepan > 0 ? "Sisa $mySisaDiDepan antrean lagi (~$ewt mnt)" : "Giliran Anda berikutnya! (~$ewt mnt)" }}</span>
- @endif
- </div>
- <a href="{{ route('customer.tiket', ['id' => $myActiveBooking->id]) }}" class="text-xs text-primary hover:underline font-semibold flex items-center gap-1 mt-1">
- <span>Buka Tiket Antrean</span>
- <span class="material-symbols-outlined text-[14px]">arrow_forward</span>
- </a>
- </div>
- @endif
+            <div class="space-y-4 relative z-10">
+                <!-- Kapster Selector Filter Pills -->
+                <div class="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                    <button 
+                        wire:click="$set('selectedKapsterId', 'all')"
+                        type="button"
+                        class="px-3 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap {{ $selectedKapsterId === 'all' ? 'bg-primary text-on-primary shadow-sm' : 'bg-surface-container/90 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high' }}">
+                        Semua Kapster
+                    </button>
+                    @foreach($kapsters as $k)
+                        @php
+                            $kWait = $kapsterStatuses[$k->id]['waiting_count'] ?? 0;
+                        @endphp
+                        <button 
+                            wire:click="$set('selectedKapsterId', '{{ $k->id }}')"
+                            type="button"
+                            class="px-3 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap flex items-center gap-1.5 {{ (string)$selectedKapsterId === (string)$k->id ? 'bg-primary text-on-primary shadow-sm' : 'bg-surface-container/90 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high' }}">
+                            <span>{{ $k->nama }}</span>
+                            @if($kWait > 0)
+                                <span class="px-1.5 py-0.5 rounded-full text-[10px] {{ (string)$selectedKapsterId === (string)$k->id ? 'bg-on-primary/20 text-on-primary' : 'bg-primary/20 text-primary' }}">
+                                    {{ $kWait }}
+                                </span>
+                            @endif
+                        </button>
+                    @endforeach
+                </div>
 
- <div class="bg-surface-container/80 rounded-xl p-4 border border-outline flex flex-col items-center justify-center text-center">
- <span class="font-label-sm text-on-surface-variant uppercase tracking-wider mb-1 text-xs">Sedang Diproses Saat Ini</span>
- <span class="font-headline-xl text-3xl text-primary font-bold leading-none text-headline-xl">
- {{ $antreanSaatIni ? $antreanSaatIni->nomor_antrean : 'Belum Ada' }}
- </span>
- @if($antreanSaatIni && $antreanSaatIni->kapster)
- <span class="text-xs text-on-surface-variant mt-2">
- Kapster: <strong class="text-on-surface">{{ $antreanSaatIni->kapster->nama }}</strong>
- </span>
- @endif
- </div>
- 
- <div class="flex items-center gap-4 bg-background/80 rounded-lg p-4 border border-outline-variant">
- <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
- <span class="material-symbols-outlined text-lg">timer</span>
- </div>
- <div class="flex-1">
- <div class="flex justify-between items-baseline">
- <p class="font-label-md text-on-surface-variant text-sm">Menunggu:</p>
- <p class="font-body-md text-sm font-bold text-on-background">{{ $menungguCount }} Orang</p>
- </div>
- <div class="flex justify-between items-baseline mt-0.5">
- <p class="font-label-md text-on-surface-variant text-sm">{{ (isset($myActiveBooking) && $myActiveBooking) ? 'Estimasi Tunggu Anda:' : 'Estimasi Waktu Tunggu:' }}</p>
- <p class="font-body-md text-sm font-bold text-primary">
- @if(isset($myActiveBooking) && $myActiveBooking && $myActiveBooking->status === 'Diproses')
- <span class="text-emerald-400">0 Menit (Sedang Dilayani)</span>
- @else
- ~{{ $ewt }} Menit
- @endif
- </p>
- </div>
- </div>
- </div>
- 
- <button wire:click="$refresh" class="w-full text-center font-label-md text-label-md text-primary hover:text-primary-fixed transition-colors py-2.5 border border-primary/30 rounded-lg hover:bg-primary/10 font-semibold text-sm flex items-center justify-center gap-2">
- <span class="material-symbols-outlined text-[18px]">sync</span>
- <span>Segarkan Data Live</span>
- </button>
- </div>
+                @if(isset($myActiveBooking) && $myActiveBooking)
+                <!-- Personalized Active Booking Card for Logged In Customer -->
+                <div class="bg-primary/10 border border-primary/30 rounded-xl p-4 flex flex-col gap-2">
+                    <div class="flex items-center justify-between">
+                        <span class="font-label-sm text-primary uppercase font-bold tracking-wider text-xs flex items-center gap-1.5">
+                            <span class="w-2 h-2 rounded-full bg-primary animate-ping"></span>
+                            Tiket Antrean Anda
+                        </span>
+                        <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold {{ $myActiveBooking->status === 'Diproses' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-primary/20 text-primary border border-primary/30' }}">
+                            {{ $myActiveBooking->status }}
+                        </span>
+                    </div>
+                    <div class="flex items-baseline justify-between">
+                        <div>
+                            <span class="font-headline-lg text-2xl font-bold text-on-surface">{{ $myActiveBooking->nomor_antrean }}</span>
+                            @if($myActiveBooking->kapster)
+                                <span class="text-xs text-on-surface-variant block mt-0.5">Kapster: <strong class="text-on-surface">{{ $myActiveBooking->kapster->nama }}</strong></span>
+                            @endif
+                        </div>
+                        <div class="text-right">
+                            @if($myActiveBooking->status === 'Diproses')
+                                <span class="text-xs text-emerald-400 font-semibold block">Sedang dilayani sekarang!</span>
+                            @else
+                                <span class="text-xs text-primary font-medium block">{{ $mySisaDiDepan > 0 ? "Sisa $mySisaDiDepan antrean lagi" : "Giliran Anda berikutnya!" }}</span>
+                                <span class="text-[11px] text-on-surface-variant block">~{{ $ewt }} Menit</span>
+                            @endif
+                        </div>
+                    </div>
+                    <a href="{{ route('customer.tiket', ['id' => $myActiveBooking->id]) }}" class="text-xs text-primary hover:underline font-semibold flex items-center gap-1 mt-1">
+                        <span>Buka Tiket Antrean</span>
+                        <span class="material-symbols-outlined text-[14px]">arrow_forward</span>
+                    </a>
+                </div>
+                @endif
+
+                @if($selectedKapsterId !== 'all' && $activeKapster)
+                <!-- Tampilan Khusus Kapster Tertentu -->
+                <div class="flex items-center justify-between text-xs px-1 text-on-surface-variant">
+                    <span>Antrean Khusus: <strong class="text-primary font-semibold">{{ $activeKapster->nama }}</strong></span>
+                    <button wire:click="$set('selectedKapsterId', 'all')" type="button" class="text-primary hover:underline text-[11px] font-medium flex items-center gap-0.5">
+                        <span class="material-symbols-outlined text-[14px]">arrow_back</span>
+                        <span>Lihat Semua</span>
+                    </button>
+                </div>
+
+                <div class="bg-surface-container/80 rounded-xl p-4 border border-outline flex flex-col items-center justify-center text-center">
+                    <span class="font-label-sm text-on-surface-variant uppercase tracking-wider mb-1 text-xs">Sedang Diproses Saat Ini</span>
+                    <span class="font-headline-xl text-3xl font-bold leading-none text-headline-xl {{ $antreanSaatIni ? 'text-primary' : 'text-emerald-400' }}">
+                        {{ $antreanSaatIni ? $antreanSaatIni->nomor_antrean : 'Standby' }}
+                    </span>
+                    <span class="text-xs text-on-surface-variant mt-2">
+                        @if($antreanSaatIni)
+                            Layanan: <strong class="text-on-surface">{{ optional($antreanSaatIni->layanan)->nama_layanan ?? '-' }}</strong>
+                        @else
+                            {{ $activeKapster->nama }} siap melayani pelanggan berikutnya.
+                        @endif
+                    </span>
+                </div>
+
+                <div class="flex items-center gap-4 bg-background/80 rounded-lg p-4 border border-outline-variant">
+                    <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                        <span class="material-symbols-outlined text-lg">timer</span>
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex justify-between items-baseline">
+                            <p class="font-label-md text-on-surface-variant text-sm">Menunggu {{ $activeKapster->nama }}:</p>
+                            <p class="font-body-md text-sm font-bold text-on-background">{{ $menungguCount }} Orang</p>
+                        </div>
+                        <div class="flex justify-between items-baseline mt-0.5">
+                            <p class="font-label-md text-on-surface-variant text-sm">Estimasi Waktu Tunggu:</p>
+                            <p class="font-body-md text-sm font-bold text-primary">
+                                @if($menungguCount === 0 && !$antreanSaatIni)
+                                    <span class="text-emerald-400">0 Menit (Langsung Masuk)</span>
+                                @else
+                                    ~{{ $ewt }} Menit
+                                @endif
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                @if($daftarMenunggu->isNotEmpty())
+                <!-- Upcoming Waiting Tickets for this Kapster -->
+                <div class="bg-surface-container/60 rounded-xl p-3 border border-outline/40">
+                    <span class="text-[11px] text-on-surface-variant uppercase tracking-wider block mb-2 font-medium">Antrean Berikutnya ({{ $activeKapster->nama }}):</span>
+                    <div class="flex flex-wrap gap-2">
+                        @foreach($daftarMenunggu as $m)
+                            <span class="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-surface-container-high text-on-surface border border-outline-variant/50">
+                                {{ $m->nomor_antrean }}
+                                @if($m->waktu_estimasi_mulai)
+                                    <span class="text-[10px] font-normal text-on-surface-variant ml-1">({{ substr($m->waktu_estimasi_mulai, 0, 5) }})</span>
+                                @endif
+                            </span>
+                        @endforeach
+                    </div>
+                </div>
+                @endif
+
+                @else
+                <!-- Tampilan Semua Kapster (Global Overview) -->
+                <div class="bg-surface-container/80 rounded-xl p-4 border border-outline flex flex-col items-center justify-center text-center">
+                    <span class="font-label-sm text-on-surface-variant uppercase tracking-wider mb-1 text-xs">Sedang Diproses Toko</span>
+                    <span class="font-headline-xl text-3xl text-primary font-bold leading-none text-headline-xl">
+                        {{ $antreanSaatIni ? $antreanSaatIni->nomor_antrean : 'Belum Ada' }}
+                    </span>
+                    @if($antreanSaatIni && $antreanSaatIni->kapster)
+                    <span class="text-xs text-on-surface-variant mt-2">
+                        Bersama: <strong class="text-on-surface">{{ $antreanSaatIni->kapster->nama }}</strong>
+                    </span>
+                    @endif
+                </div>
+
+                <div class="flex items-center gap-4 bg-background/80 rounded-lg p-4 border border-outline-variant">
+                    <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                        <span class="material-symbols-outlined text-lg">timer</span>
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex justify-between items-baseline">
+                            <p class="font-label-md text-on-surface-variant text-sm">Total Menunggu:</p>
+                            <p class="font-body-md text-sm font-bold text-on-background">{{ $menungguCount }} Orang</p>
+                        </div>
+                        <div class="flex justify-between items-baseline mt-0.5">
+                            <p class="font-label-md text-on-surface-variant text-sm">Estimasi Tunggu:</p>
+                            <p class="font-body-md text-sm font-bold text-primary">~{{ $ewt }} Menit</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Per-Kapster Quick Status Cards -->
+                <div class="space-y-2 pt-1">
+                    <span class="text-[11px] text-on-surface-variant uppercase tracking-wider block font-semibold px-1">Status Kapster (Klik untuk filter):</span>
+                    <div class="grid grid-cols-1 gap-2">
+                        @foreach($kapsters as $k)
+                            @php
+                                $kStat = $kapsterStatuses[$k->id] ?? null;
+                                $isBusy = $kStat && $kStat['current'];
+                            @endphp
+                            <button 
+                                wire:click="$set('selectedKapsterId', '{{ $k->id }}')" 
+                                type="button" 
+                                class="w-full text-left bg-surface-container/60 hover:bg-surface-container-high border border-outline/40 hover:border-primary/50 rounded-xl p-2.5 flex items-center justify-between transition-all group">
+                                <div class="flex items-center gap-2.5">
+                                    <div class="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs group-hover:bg-primary group-hover:text-on-primary transition-colors">
+                                        {{ substr($k->nama, 0, 2) }}
+                                    </div>
+                                    <div>
+                                        <div class="text-xs font-bold text-on-surface group-hover:text-primary transition-colors">{{ $k->nama }}</div>
+                                        <div class="text-[11px] text-on-surface-variant">
+                                            @if($isBusy)
+                                                <span class="text-amber-400 font-medium flex items-center gap-1">
+                                                    <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                                                    Sedang cukur: #{{ $kStat['current']->nomor_antrean }}
+                                                </span>
+                                            @else
+                                                <span class="text-emerald-400 font-medium flex items-center gap-1">
+                                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                                                    Standby / Siap
+                                                </span>
+                                            @endif
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold {{ ($kStat['waiting_count'] ?? 0) > 0 ? 'bg-primary/20 text-primary' : 'bg-surface-container-highest text-on-surface-variant' }}">
+                                        {{ $kStat['waiting_count'] ?? 0 }} Antre
+                                    </span>
+                                </div>
+                            </button>
+                        @endforeach
+                    </div>
+                </div>
+                @endif
+
+                <button wire:click="$refresh" type="button" class="w-full text-center font-label-md text-label-md text-primary hover:text-primary-fixed transition-colors py-2.5 border border-primary/30 rounded-lg hover:bg-primary/10 font-semibold text-sm flex items-center justify-center gap-2">
+                    <span class="material-symbols-outlined text-[18px]">sync</span>
+                    <span>Segarkan Data Live</span>
+                </button>
+            </div>
  </div>
  </div>
  </div>

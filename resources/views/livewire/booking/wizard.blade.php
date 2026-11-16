@@ -132,6 +132,13 @@ new #[Layout('components.layouts.customer')] #[Title('Booking Reservasi - Ran Cu
                 'created_at' => now()->toDateTimeString(),
             ]);
         } catch (\Throwable $e) {}
+
+        if ($this->appliedVoucher) {
+            try {
+                $this->appliedVoucher->increment('kuota_terpakai');
+                app(\App\Services\GoogleSheetsService::class)->syncTable('voucher');
+            } catch (\Throwable $e) {}
+        }
  
  session()->flash('booking_success', 'Reservasi berhasil dibuat! Silakan datang tepat waktu.');
  return redirect('/');

@@ -33,6 +33,9 @@ class AntreanPemesanan extends Model
         }
 
         return self::where('status', 'Menunggu')
+            ->when($this->kapster_id, function($q) {
+                $q->where('kapster_id', $this->kapster_id);
+            })
             ->where(function($q) {
                 $q->where('tanggal', '<', $this->tanggal)
                   ->orWhere(function($q2) {
@@ -57,10 +60,14 @@ class AntreanPemesanan extends Model
         }
 
         $sisaDiDepan = $this->sisa_antrean_di_depan;
+        if ($this->kapster_id) {
+            return max(5, ($sisaDiDepan + 1) * 30);
+        }
+
         $kapsterCount = max(1, User::whereHas('roles', fn($q) => $q->where('name', 'Kapster'))->count());
         $turns = ceil(($sisaDiDepan + 1) / $kapsterCount);
 
-        return (int) ($turns * 30);
+        return (int) max(5, $turns * 30);
     }
 
     /**
@@ -85,5 +92,33 @@ class AntreanPemesanan extends Model
         $turns = ceil(($menungguCount + 1) / $kapsterCount);
 
         return (int) ($turns * 30);
+    }
+
+    /**
+     * Hitung estimasi waktu tunggu untuk kapster spesifik (dalam menit).
+     */
+    public static function hitungEwtKapster($kapsterId): int
+    {
+        $today = \Carbon\Carbon::today()->toDateString();
+        $menungguCount = self::where('status', 'Menunggu')
+            ->where('kapster_id', $kapsterId)
+            ->whereDate('tanggal', $today)
+            ->count();
+
+        if ($menungguCount === 0) {
+            $menungguCount = self::where('status', 'Menunggu')
+                ->where('kapster_id', $kapsterId)
+                ->count();
+        }
+
+        $isProcessing = self::where('status', 'Diproses')
+            ->where('kapster_id', $kapsterId)
+            ->exists();
+
+        if ($menungguCount === 0) {
+            return $isProcessing ? 15 : 0;
+        }
+
+        return (int) ($menungguCount * 30 + ($isProcessing ? 15 : 0));
     }
 }

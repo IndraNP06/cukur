@@ -8,227 +8,438 @@ use Livewire\Attributes\Title;
 use Livewire\Volt\Component;
 
 new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran CukurIn')] class extends Component {
- public $totalPelanggan = 0;
- public $sisaJadwal = 0;
- public $selesaiDikerjakan = 0;
- 
- public $jadwalTerdekat = [];
- public $shiftHariIni = null;
+    public $filterTanggal = 'upcoming'; // 'upcoming', 'today', 'tomorrow', 'all', 'custom'
+    public $customTanggal = '';
+    public $filterStatus = 'active'; // 'active', 'Menunggu', 'Diproses', 'Selesai', 'all'
 
- public function mount()
- {
- $user = auth()->user();
- $today = Carbon::today();
- 
- $this->shiftHariIni = JadwalShift::where('kapster_id', $user->id)
- ->whereDate('tanggal', $today)
- ->first();
+    public function mulaiPengerjaan($id)
+    {
+        $antrean = AntreanPemesanan::find($id);
+        if ($antrean && $antrean->kapster_id === auth()->id() && $antrean->status === 'Menunggu') {
+            $antrean->status = 'Diproses';
+            $antrean->waktu_mulai_aktual = now()->format('H:i:s');
+            $antrean->save();
 
- // Stats
- $pemesanans = AntreanPemesanan::where('kapster_id', $user->id)
- ->whereDate('tanggal', $today)
- ->get();
- 
- $this->totalPelanggan = $pemesanans->count();
- $this->selesaiDikerjakan = $pemesanans->where('status', 'Selesai')->count();
- $this->sisaJadwal = $pemesanans->whereIn('status', ['Menunggu', 'Diproses'])->count();
- 
- // Jadwal Terdekat
- $this->jadwalTerdekat = AntreanPemesanan::where('kapster_id', $user->id)
- ->whereDate('tanggal', $today)
- ->whereIn('status', ['Menunggu', 'Diproses'])
- ->with('pelanggan', 'layanan')
- ->orderBy('waktu_estimasi_mulai', 'asc')
- ->take(3)
- ->get();
- }
- 
- public function mulaiPengerjaan($id)
- {
- $antrean = AntreanPemesanan::find($id);
- if ($antrean && $antrean->status === 'Menunggu') {
- $antrean->status = 'Diproses';
- $antrean->waktu_mulai_aktual = now()->format('H:i:s');
- $antrean->save();
- $this->mount();
- }
- }
+            try {
+                app(\App\Services\GoogleSheetsService::class)->syncTable('antrean_pemesanan');
+            } catch (\Throwable $e) {}
+        }
+    }
 
- public function selesaiPengerjaan($id)
- {
- return redirect()->route('admin.pos', ['antrean_id' => $id]);
- }
+    public function selesaiPengerjaanLangsung($id)
+    {
+        $antrean = AntreanPemesanan::find($id);
+        if ($antrean && $antrean->kapster_id === auth()->id() && $antrean->status === 'Diproses') {
+            $antrean->status = 'Selesai';
+            $antrean->waktu_selesai_aktual = now()->format('H:i:s');
+            $antrean->save();
+
+            try {
+                app(\App\Services\GoogleSheetsService::class)->syncTable('antrean_pemesanan');
+            } catch (\Throwable $e) {}
+        }
+    }
+
+    public function selesaiPengerjaan($id)
+    {
+        return redirect()->route('admin.pos', ['antrean_id' => $id]);
+    }
+
+    public function with()
+    {
+        $user = auth()->user();
+        $today = Carbon::today()->toDateString();
+        $tomorrow = Carbon::tomorrow()->toDateString();
+
+        $shiftHariIni = JadwalShift::where('kapster_id', $user->id)
+            ->whereDate('tanggal', $today)
+            ->first();
+
+        // Base Query untuk kapster ini
+        $baseKapsterQuery = AntreanPemesanan::where('kapster_id', $user->id);
+
+        // Stats
+        $totalPelanggan = (clone $baseKapsterQuery)->whereDate('tanggal', $today)->count();
+        $totalMendatang = (clone $baseKapsterQuery)->whereDate('tanggal', '>=', $today)->whereIn('status', ['Menunggu', 'Diproses'])->count();
+        $selesaiHariIni = (clone $baseKapsterQuery)->whereDate('tanggal', $today)->where('status', 'Selesai')->count();
+        $sedangDiproses = (clone $baseKapsterQuery)->where('status', 'Diproses')->count();
+
+        // Orders Query
+        $ordersQuery = (clone $baseKapsterQuery)->with(['pelanggan', 'layanan']);
+
+        // Date Filter
+        if ($this->filterTanggal === 'today') {
+            $ordersQuery->whereDate('tanggal', $today);
+        } elseif ($this->filterTanggal === 'tomorrow') {
+            $ordersQuery->whereDate('tanggal', $tomorrow);
+        } elseif ($this->filterTanggal === 'upcoming') {
+            $ordersQuery->whereDate('tanggal', '>=', $today);
+        } elseif ($this->filterTanggal === 'custom' && !empty($this->customTanggal)) {
+            $ordersQuery->whereDate('tanggal', $this->customTanggal);
+        }
+
+        // Status Filter
+        if ($this->filterStatus === 'active') {
+            $ordersQuery->whereIn('status', ['Menunggu', 'Diproses']);
+        } elseif ($this->filterStatus !== 'all') {
+            $ordersQuery->where('status', $this->filterStatus);
+        }
+
+        $orders = $ordersQuery
+            ->orderBy('tanggal', 'asc')
+            ->orderBy('waktu_estimasi_mulai', 'asc')
+            ->get();
+
+        return [
+            'shiftHariIni' => $shiftHariIni,
+            'totalPelanggan' => $totalPelanggan,
+            'totalMendatang' => $totalMendatang,
+            'selesaiHariIni' => $selesaiHariIni,
+            'sedangDiproses' => $sedangDiproses,
+            'orders' => $orders,
+            'today' => $today,
+            'tomorrow' => $tomorrow,
+        ];
+    }
 };
 ?>
 
-<div class="flex-grow flex flex-col relative bg-background">
- <div class="flex flex-col w-full h-full p-4 lg:p-5 pt-16 gap-5 lg:gap-5 relative overflow-hidden bg-background">
- 
- <div class="absolute inset-0 pointer-events-none overflow-hidden z-0">
- <div class="absolute -top-40 -right-40 w-56 h-56 bg-primary/5 rounded-full blur-[100px]"></div>
- <div class="absolute bottom-0 left-0 w-[500px] h-[500px] bg-secondary/5 rounded-full blur-[120px]"></div>
- </div>
+<div class="flex-grow flex flex-col relative bg-background" wire:poll.5s>
+    <div class="flex flex-col w-full h-full p-4 lg:p-6 pt-6 gap-6 relative overflow-hidden bg-background">
+        
+        <div class="absolute inset-0 pointer-events-none overflow-hidden z-0">
+            <div class="absolute -top-40 -right-40 w-56 h-56 bg-primary/5 rounded-full blur-[100px]"></div>
+            <div class="absolute bottom-0 left-0 w-[500px] h-[500px] bg-secondary/5 rounded-full blur-[120px]"></div>
+        </div>
 
- <!-- Top Header & Shift Status -->
- <header class="flex flex-col md:flex-row md:items-end justify-between gap-4 lg:gap-5 relative z-10 text-on-surface">
- <div class="flex flex-col gap-2">
- <span class="text-label-md font-label-md text-primary uppercase tracking-widest opacity-80 mix-blend-plus-lighter">Ran CukurIn Internal</span>
- <h1 class="font-headline-xl text-on-background tracking-tighter leading-none text-headline-xl">Selamat Datang,<br><span class="text-primary">{{ explode(' ', auth()->user()->nama)[0] }}!</span></h1>
- </div>
- <div class="flex items-center gap-3 bg-surface-container-high rounded-full px-4 lg:px-5 py-3 shadow-lg w-fit md:mb-2 transform transition-transform hover:scale-105">
- <div class="w-3 h-3 rounded-full {{ $shiftHariIni && $shiftHariIni->status === 'Hadir' ? 'bg-primary shadow-[0_0_12px_rgba(255,193,116,0.6)] animate-pulse' : 'bg-surface-variant' }}"></div>
- <span class="text-label-md font-label-md text-on-surface-variant">
- @if($shiftHariIni && $shiftHariIni->status === 'Hadir')
- Shift {{ \Carbon\Carbon::parse($shiftHariIni->jam_mulai)->format('H:i') }} - {{ \Carbon\Carbon::parse($shiftHariIni->jam_selesai)->format('H:i') }}
- @else
- Off Shift
- @endif
- <span class="mx-2 opacity-50">|</span> {{ \Carbon\Carbon::now()->translatedFormat('l, d M Y') }}
- </span>
- </div>
- </header>
+        <!-- Top Header & Shift Status -->
+        <header class="flex flex-col md:flex-row md:items-end justify-between gap-4 relative z-10 text-on-surface">
+            <div class="flex flex-col gap-1">
+                <span class="text-label-md font-label-md text-primary uppercase tracking-widest opacity-80">Dashboard Kapster</span>
+                <h1 class="font-headline-xl text-on-background tracking-tight text-3xl lg:text-4xl font-bold">
+                    Halo, <span class="text-primary">{{ explode(' ', auth()->user()->nama)[0] }}!</span>
+                </h1>
+                <p class="text-sm text-on-surface-variant">Berikut adalah daftar pesanan &amp; giliran potong rambut khusus untuk Anda.</p>
+            </div>
+            <div class="flex items-center gap-3 bg-surface-container-high rounded-full px-5 py-2.5 shadow-md w-fit">
+                <div class="w-3 h-3 rounded-full {{ $shiftHariIni && $shiftHariIni->status === 'Hadir' ? 'bg-primary shadow-[0_0_12px_rgba(255,193,116,0.6)] animate-pulse' : 'bg-surface-variant' }}"></div>
+                <span class="text-label-md font-label-md text-on-surface-variant text-sm">
+                    @if($shiftHariIni && $shiftHariIni->status === 'Hadir')
+                        Shift {{ \Carbon\Carbon::parse($shiftHariIni->jam_mulai)->format('H:i') }} - {{ \Carbon\Carbon::parse($shiftHariIni->jam_selesai)->format('H:i') }}
+                    @else
+                        Off Shift
+                    @endif
+                    <span class="mx-2 opacity-50">|</span> {{ \Carbon\Carbon::now()->translatedFormat('l, d M Y') }}
+                </span>
+            </div>
+        </header>
 
- <!-- Summary Widgets (3-column grid) -->
- <section class="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-5 relative z-10 text-on-surface">
- <!-- Widget 1 -->
- <div class="bg-surface-container shadow-md rounded-xl p-4 lg:p-5 relative overflow-hidden group">
- <div class="absolute -right-8 -top-8 w-12 h-12 bg-primary/5 rounded-full blur-2xl group-hover:bg-primary/10 transition-colors duration-500"></div>
- <div class="flex flex-col justify-between h-full gap-4 relative z-10">
- <div class="flex items-center justify-between">
- <span class="text-label-sm font-label-sm text-on-surface-variant uppercase tracking-wide">Total Pelanggan</span>
- <span class="material-symbols-outlined text-primary opacity-80" style="font-variation-settings: 'FILL' 1;">groups</span>
- </div>
- <div class="flex items-baseline gap-2">
- <span class="font-headline-lg text-on-surface leading-none text-headline-lg">{{ $totalPelanggan }}</span>
- <span class="text-label-sm font-label-sm text-on-surface-variant">Hari Ini</span>
- </div>
- </div>
- </div>
- 
- <!-- Widget 2 -->
- <div class="bg-surface-container shadow-md rounded-xl p-4 lg:p-5 relative overflow-hidden group">
- <div class="absolute -left-8 -bottom-8 w-12 h-12 bg-primary/10 rounded-full blur-2xl group-hover:bg-primary/20 transition-colors duration-500"></div>
- <div class="flex flex-col justify-between h-full gap-4 relative z-10">
- <div class="flex items-center justify-between">
- <span class="text-label-sm font-label-sm text-on-surface-variant uppercase tracking-wide">Sisa Jadwal</span>
- <span class="material-symbols-outlined text-primary opacity-80" style="font-variation-settings: 'FILL' 1;">event_upcoming</span>
- </div>
- <div class="flex items-baseline gap-2">
- <span class="font-headline-lg text-primary leading-none text-headline-lg">{{ $sisaJadwal }}</span>
- <span class="text-label-sm font-label-sm text-on-surface-variant">Booking</span>
- </div>
- </div>
- </div>
- 
- <!-- Widget 3 -->
- <div class="bg-surface-container shadow-md rounded-xl p-4 lg:p-5 relative overflow-hidden group">
- <div class="absolute right-0 top-1/2 -translate-y-1/2 w-12 h-12 bg-secondary/10 rounded-full blur-xl group-hover:bg-secondary/20 transition-colors duration-500"></div>
- <div class="flex flex-col justify-between h-full gap-4 relative z-10">
- <div class="flex items-center justify-between">
- <span class="text-label-sm font-label-sm text-on-surface-variant uppercase tracking-wide">Selesai Dikerjakan</span>
- <span class="material-symbols-outlined text-secondary opacity-80" style="font-variation-settings: 'FILL' 1;">check_circle</span>
- </div>
- <div class="flex items-baseline gap-2">
- <span class="font-headline-lg text-secondary leading-none text-headline-lg">{{ $selesaiDikerjakan }}</span>
- <span class="text-label-sm font-label-sm text-on-surface-variant">Sesi</span>
- </div>
- </div>
- </div>
- </section>
+        <!-- Summary Widgets (3-column grid) -->
+        <section class="grid grid-cols-1 md:grid-cols-4 gap-4 relative z-10 text-on-surface">
+            <!-- Widget 1: Orderan Aktif / Mendatang -->
+            <div class="bg-surface-container shadow-md rounded-2xl p-5 relative overflow-hidden group border border-outline-variant/30">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-label-sm font-label-sm text-on-surface-variant uppercase tracking-wide text-xs">Job Mendatang</span>
+                    <span class="material-symbols-outlined text-primary text-xl" style="font-variation-settings: 'FILL' 1;">event_upcoming</span>
+                </div>
+                <div class="flex items-baseline gap-2">
+                    <span class="text-3xl font-bold text-primary leading-none">{{ $totalMendatang }}</span>
+                    <span class="text-xs text-on-surface-variant">Booking Aktif</span>
+                </div>
+            </div>
 
- <!-- Main Content Split -->
- <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:gap-5 relative z-10">
- <!-- Left Column: Jadwal Terdekat (col-span-2) -->
- <section class="lg:col-span-2 flex flex-col gap-4 lg:gap-5 text-on-surface">
- <div class="flex items-center justify-between">
- <h2 class="md:text-headline-md font-headline-lg text-on-background flex items-center gap-3 text-headline-lg">
- <span class="material-symbols-outlined text-primary text-xl">schedule</span>
- Jadwal Terdekat Anda
- </h2>
- <a href="{{ route('admin.antrean') }}" wire:navigate class="text-label-md font-label-md text-primary hover:text-primary-fixed transition-colors flex items-center gap-1">Lihat Semua <span class="material-symbols-outlined text-[18px]">arrow_forward</span></a>
- </div>
- 
- <div class="flex flex-col gap-4">
- @forelse($jadwalTerdekat as $idx => $jadwal)
- <article class="bg-surface-container shadow-lg rounded-2xl p-4 md:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 lg:gap-5 group hover:-translate-y-1 transition-transform duration-300 relative overflow-hidden">
- <div class="absolute left-0 top-0 bottom-0 w-1 {{ $idx === 0 ? 'bg-primary scale-y-100' : 'bg-surface-variant group-hover:bg-primary/50' }} transform origin-bottom transition-all duration-300"></div>
- <div class="flex items-center gap-4 lg:gap-5 {{ $idx > 0 ? 'opacity-75 group-hover:opacity-100' : '' }} transition-opacity">
- <div class="bg-surface-container-highest px-4 py-3 rounded-xl flex flex-col items-center justify-center min-w-[80px]">
- <span class="text-label-sm font-label-sm text-on-surface-variant uppercase mb-1">Pukul</span>
- <span class="font-headline-md {{ $idx === 0 ? 'text-primary' : 'text-on-surface' }} leading-none text-headline-md">{{ \Carbon\Carbon::parse($jadwal->waktu_estimasi_mulai)->format('H:i') }}</span>
- </div>
- <div class="flex items-center gap-4">
- <div class="w-14 h-14 rounded-full bg-surface-container-low overflow-hidden shadow-inner shrink-0 relative flex items-center justify-center text-on-surface font-headline-md text-headline-md">
- {{ substr(optional($jadwal->pelanggan)->nama ?? 'A', 0, 2) }}
- </div>
- <div class="flex flex-col min-w-0">
- <h3 class="text-body-lg font-body-lg text-on-surface font-semibold truncate">{{ optional($jadwal->pelanggan)->nama ?? 'Anonim' }}</h3>
- <div class="flex items-center gap-2 mt-1">
- <span class="w-2 h-2 rounded-full bg-surface-variant"></span>
- <span class="text-label-sm font-label-sm text-on-surface-variant truncate">{{ optional($jadwal->layanan)->nama_layanan ?? '-' }}</span>
- </div>
- </div>
- </div>
- </div>
- @if($jadwal->status === 'Diproses')
- <button wire:click="selesaiPengerjaan({{ $jadwal->id }})" class="w-full md:w-auto bg-[#10b981] text-white px-4 lg:px-5 py-3 rounded-xl font-label-md text-label-md shadow-md shadow-[#10b981]/20 hover:bg-[#059669] hover:scale-105 transition-all duration-200 flex items-center justify-center gap-2 group/btn">
- Selesai & Ke Pembayaran
- <span class="material-symbols-outlined text-[20px] group-hover/btn:translate-x-1 transition-transform">point_of_sale</span>
- </button>
- @elseif($idx === 0)
- <button wire:click="mulaiPengerjaan({{ $jadwal->id }})" class="w-full md:w-auto bg-primary text-on-primary px-4 lg:px-5 py-3 rounded-xl font-label-md text-label-md shadow-md shadow-primary/20 hover:bg-primary-fixed hover:scale-105 transition-all duration-200 flex items-center justify-center gap-2 group/btn">
- Mulai Pengerjaan
- <span class="material-symbols-outlined text-[20px] group-hover/btn:translate-x-1 transition-transform">arrow_forward</span>
- </button>
- @else
- <button class="w-full md:w-auto bg-transparent border border-outline-variant text-on-surface px-4 lg:px-5 py-3 rounded-xl font-label-md text-label-md hover:bg-surface-container-high hover:border-primary hover:text-primary transition-all duration-200 flex items-center justify-center gap-2 opacity-50 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto">
- Menunggu...
- </button>
- @endif
- </article>
- @empty
- <div class="bg-surface-container shadow-lg rounded-2xl p-5 lg:p-5 text-center border-2 border-dashed border-surface-variant">
- <span class="material-symbols-outlined text-lg text-on-surface-variant mb-4">event_available</span>
- <p class="text-body-lg text-on-surface">Tidak ada jadwal antrean untuk saat ini.</p>
- </div>
- @endforelse
- </div>
- </section>
+            <!-- Widget 2: Sedang Diproses -->
+            <div class="bg-surface-container shadow-md rounded-2xl p-5 relative overflow-hidden group border border-outline-variant/30">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-label-sm font-label-sm text-on-surface-variant uppercase tracking-wide text-xs">Sedang Dicukur</span>
+                    <span class="material-symbols-outlined text-amber-400 text-xl animate-spin">sync</span>
+                </div>
+                <div class="flex items-baseline gap-2">
+                    <span class="text-3xl font-bold text-amber-400 leading-none">{{ $sedangDiproses }}</span>
+                    <span class="text-xs text-on-surface-variant">Pelanggan Aktif</span>
+                </div>
+            </div>
+            
+            <!-- Widget 3: Pelanggan Hari Ini -->
+            <div class="bg-surface-container shadow-md rounded-2xl p-5 relative overflow-hidden group border border-outline-variant/30">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-label-sm font-label-sm text-on-surface-variant uppercase tracking-wide text-xs">Total Hari Ini</span>
+                    <span class="material-symbols-outlined text-primary opacity-80 text-xl" style="font-variation-settings: 'FILL' 1;">groups</span>
+                </div>
+                <div class="flex items-baseline gap-2">
+                    <span class="text-3xl font-bold text-on-surface leading-none">{{ $totalPelanggan }}</span>
+                    <span class="text-xs text-on-surface-variant">Total Booking</span>
+                </div>
+            </div>
+            
+            <!-- Widget 4: Selesai Hari Ini -->
+            <div class="bg-surface-container shadow-md rounded-2xl p-5 relative overflow-hidden group border border-outline-variant/30">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-label-sm font-label-sm text-on-surface-variant uppercase tracking-wide text-xs">Selesai Hari Ini</span>
+                    <span class="material-symbols-outlined text-emerald-400 opacity-80 text-xl" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+                </div>
+                <div class="flex items-baseline gap-2">
+                    <span class="text-3xl font-bold text-emerald-400 leading-none">{{ $selesaiHariIni }}</span>
+                    <span class="text-xs text-on-surface-variant">Selesai</span>
+                </div>
+            </div>
+        </section>
 
- <!-- Right Column: Aksi Cepat (col-span-1) -->
- <aside class="lg:col-span-1 flex flex-col gap-4 lg:gap-5 text-on-surface">
- <h2 class="font-headline-md text-on-background flex items-center gap-3 text-headline-md">
- <span class="material-symbols-outlined text-primary">bolt</span>
- Aksi Cepat
- </h2>
- <div class="bg-surface-container shadow-xl rounded-2xl p-4 lg:p-5 flex flex-col gap-4 relative overflow-hidden">
- <div class="absolute -right-12 -top-12 w-12 h-12 bg-primary/5 rounded-full blur-3xl pointer-events-none"></div>
- <div class="absolute -left-12 -bottom-12 w-12 h-12 bg-secondary/5 rounded-full blur-3xl pointer-events-none"></div>
- 
- <a href="{{ route('admin.antrean') }}" class="w-full bg-primary/10 border-2 border-dashed border-primary/50 text-primary px-4 py-4 lg:py-5 rounded-xl font-label-md text-label-md hover:bg-primary/20 hover:border-primary transition-all duration-300 flex flex-col items-center justify-center gap-3 group relative z-10">
- <span class="material-symbols-outlined text-[32px] group-hover:scale-110 transition-transform">person_add</span>
- <span>+ Input Pelanggan Walk-In</span>
- </a>
- 
- <div class="w-full h-px bg-surface-variant my-2 relative z-10"></div>
- 
- <a href="{{ route('admin.antrean') }}" class="w-full bg-surface-container-high text-on-surface px-4 py-4 rounded-xl font-label-md text-label-md hover:bg-surface-container-highest hover:text-primary transition-all duration-200 flex items-center justify-between group relative z-10 shadow-sm">
- <div class="flex items-center gap-3">
- <span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">view_list</span>
- Buka Antrean Terpadu
- </div>
- <span class="material-symbols-outlined opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all text-primary">chevron_right</span>
- </a>
- 
- <a href="{{ route('admin.stok') }}" class="w-full bg-surface-container-high text-on-surface px-4 py-4 rounded-xl font-label-md text-label-md hover:bg-surface-container-highest hover:text-error transition-all duration-200 flex items-center justify-between group relative z-10 shadow-sm">
- <div class="flex items-center gap-3">
- <span class="material-symbols-outlined text-on-surface-variant group-hover:text-error transition-colors">inventory_2</span>
- Lapor Ekstra (Silet/Tisu)
- </div>
- <span class="material-symbols-outlined opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all text-error">chevron_right</span>
- </a>
- </div>
- </aside>
- </div>
- </div>
+        <!-- Main Content Split -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 relative z-10">
+            <!-- Left Column: Orderan & Job Antrean Anda (col-span-2) -->
+            <section class="lg:col-span-2 flex flex-col gap-4 text-on-surface">
+                <!-- Control & Filter Bar -->
+                <div class="bg-surface-container p-4 rounded-2xl border border-outline-variant/40 space-y-3">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div class="flex items-center gap-2">
+                            <span class="material-symbols-outlined text-primary text-xl">content_cut</span>
+                            <h2 class="text-lg font-bold text-on-surface">Job &amp; Orderan Saya</h2>
+                            <span class="text-xs bg-primary/20 text-primary px-2.5 py-0.5 rounded-full font-bold font-mono">{{ $orders->count() }} Job</span>
+                        </div>
+                        
+                        <!-- Date Filter Pills -->
+                        <div class="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none text-xs">
+                            <button 
+                                wire:click="$set('filterTanggal', 'upcoming')" 
+                                type="button"
+                                class="px-3 py-1.5 rounded-lg font-semibold transition-all whitespace-nowrap {{ $filterTanggal === 'upcoming' ? 'bg-primary text-on-primary shadow-sm' : 'bg-surface-container-high text-on-surface-variant hover:text-on-surface' }}">
+                                Semua Mendatang
+                            </button>
+                            <button 
+                                wire:click="$set('filterTanggal', 'today')" 
+                                type="button"
+                                class="px-3 py-1.5 rounded-lg font-semibold transition-all whitespace-nowrap {{ $filterTanggal === 'today' ? 'bg-primary text-on-primary shadow-sm' : 'bg-surface-container-high text-on-surface-variant hover:text-on-surface' }}">
+                                Hari Ini
+                            </button>
+                            <button 
+                                wire:click="$set('filterTanggal', 'tomorrow')" 
+                                type="button"
+                                class="px-3 py-1.5 rounded-lg font-semibold transition-all whitespace-nowrap {{ $filterTanggal === 'tomorrow' ? 'bg-primary text-on-primary shadow-sm' : 'bg-surface-container-high text-on-surface-variant hover:text-on-surface' }}">
+                                Besok
+                            </button>
+                            <button 
+                                wire:click="$set('filterTanggal', 'all')" 
+                                type="button"
+                                class="px-3 py-1.5 rounded-lg font-semibold transition-all whitespace-nowrap {{ $filterTanggal === 'all' ? 'bg-primary text-on-primary shadow-sm' : 'bg-surface-container-high text-on-surface-variant hover:text-on-surface' }}">
+                                Semua Riwayat
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Status Filter Tabs -->
+                    <div class="flex items-center justify-between border-t border-outline-variant/30 pt-3 text-xs">
+                        <div class="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+                            <span class="text-on-surface-variant text-[11px] font-medium mr-1 hidden sm:inline">Status:</span>
+                            <button 
+                                wire:click="$set('filterStatus', 'active')" 
+                                type="button"
+                                class="px-2.5 py-1 rounded-md font-medium transition-all {{ $filterStatus === 'active' ? 'bg-primary/20 text-primary border border-primary/40' : 'text-on-surface-variant hover:text-on-surface' }}">
+                                Aktif (Menunggu &amp; Diproses)
+                            </button>
+                            <button 
+                                wire:click="$set('filterStatus', 'Menunggu')" 
+                                type="button"
+                                class="px-2.5 py-1 rounded-md font-medium transition-all {{ $filterStatus === 'Menunggu' ? 'bg-primary/20 text-primary border border-primary/40' : 'text-on-surface-variant hover:text-on-surface' }}">
+                                Menunggu
+                            </button>
+                            <button 
+                                wire:click="$set('filterStatus', 'Diproses')" 
+                                type="button"
+                                class="px-2.5 py-1 rounded-md font-medium transition-all {{ $filterStatus === 'Diproses' ? 'bg-primary/20 text-primary border border-primary/40' : 'text-on-surface-variant hover:text-on-surface' }}">
+                                Sedang Diproses
+                            </button>
+                            <button 
+                                wire:click="$set('filterStatus', 'Selesai')" 
+                                type="button"
+                                class="px-2.5 py-1 rounded-md font-medium transition-all {{ $filterStatus === 'Selesai' ? 'bg-primary/20 text-primary border border-primary/40' : 'text-on-surface-variant hover:text-on-surface' }}">
+                                Selesai
+                            </button>
+                            <button 
+                                wire:click="$set('filterStatus', 'all')" 
+                                type="button"
+                                class="px-2.5 py-1 rounded-md font-medium transition-all {{ $filterStatus === 'all' ? 'bg-primary/20 text-primary border border-primary/40' : 'text-on-surface-variant hover:text-on-surface' }}">
+                                Semua
+                            </button>
+                        </div>
+                        
+                        <div class="flex items-center gap-2">
+                            <input 
+                                type="date" 
+                                wire:model.live="customTanggal" 
+                                wire:change="$set('filterTanggal', 'custom')"
+                                class="bg-surface-container-high text-on-surface text-xs rounded-lg px-2.5 py-1 border border-outline-variant/50 outline-none cursor-pointer">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Orders List -->
+                <div class="flex flex-col gap-3">
+                    @forelse($orders as $idx => $order)
+                        @php
+                            $isToday = $order->tanggal === $today;
+                            $isTomorrow = $order->tanggal === $tomorrow;
+                        @endphp
+                        <article class="bg-surface-container shadow-md rounded-2xl p-4 md:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 border border-outline-variant/30 hover:border-primary/50 transition-all relative overflow-hidden group">
+                            <!-- Left Accent Border -->
+                            <div class="absolute left-0 top-0 bottom-0 w-1.5 {{ $order->status === 'Diproses' ? 'bg-emerald-500' : ($order->status === 'Menunggu' ? 'bg-primary' : 'bg-surface-variant') }}"></div>
+
+                            <div class="flex flex-col sm:flex-row sm:items-center gap-4 flex-1">
+                                <!-- Time & Date Box -->
+                                <div class="bg-surface-container-highest px-4 py-3 rounded-xl flex flex-col items-center justify-center min-w-[95px] shrink-0 border border-outline-variant/20">
+                                    <span class="text-[10px] font-bold uppercase tracking-wider {{ $isToday ? 'text-emerald-400' : ($isTomorrow ? 'text-primary' : 'text-on-surface-variant') }}">
+                                        @if($isToday)
+                                            Hari Ini
+                                        @elseif($isTomorrow)
+                                            Besok
+                                        @else
+                                            {{ \Carbon\Carbon::parse($order->tanggal)->translatedFormat('d M') }}
+                                        @endif
+                                    </span>
+                                    <span class="text-xl font-bold font-mono text-on-surface mt-0.5">
+                                        {{ substr($order->waktu_estimasi_mulai, 0, 5) }}
+                                    </span>
+                                    <span class="text-[10px] text-on-surface-variant">WIB</span>
+                                </div>
+
+                                <!-- Customer & Service Info -->
+                                <div class="flex items-center gap-3.5 flex-1 min-w-0">
+                                    <div class="w-12 h-12 rounded-xl bg-surface-container-high border border-outline-variant/30 overflow-hidden shrink-0 flex items-center justify-center text-primary font-bold text-base shadow-sm">
+                                        {{ substr(optional($order->pelanggan)->nama ?? 'P', 0, 2) }}
+                                    </div>
+                                    <div class="flex flex-col min-w-0">
+                                        <div class="flex items-center gap-2 flex-wrap">
+                                            <h3 class="text-base font-bold text-on-surface truncate">{{ optional($order->pelanggan)->nama ?? 'Pelanggan Umum' }}</h3>
+                                            <span class="font-mono text-xs px-2 py-0.5 rounded font-bold {{ $order->tipe_antrean === 'Online' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-purple-500/20 text-purple-400 border border-purple-500/30' }}">
+                                                {{ $order->nomor_antrean }}
+                                            </span>
+                                            <span class="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-semibold {{ $order->status === 'Diproses' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 animate-pulse' : ($order->status === 'Menunggu' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-surface-container-highest text-on-surface-variant') }}">
+                                                {{ $order->status }}
+                                            </span>
+                                        </div>
+                                        <div class="flex items-center gap-3 text-xs text-on-surface-variant mt-1">
+                                            <span class="flex items-center gap-1 font-medium text-on-surface">
+                                                <span class="material-symbols-outlined text-[14px] text-primary">cut</span>
+                                                {{ optional($order->layanan)->nama_layanan ?? '-' }}
+                                            </span>
+                                            <span>&bull;</span>
+                                            <span>Rp {{ number_format(optional($order->layanan)->harga ?? 0, 0, ',', '.') }}</span>
+                                            @if(optional($order->pelanggan)->no_telp)
+                                                <span>&bull;</span>
+                                                <span class="flex items-center gap-1">
+                                                    <span class="material-symbols-outlined text-[14px]">call</span>
+                                                    {{ $order->pelanggan->no_telp }}
+                                                </span>
+                                            @endif
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Action Buttons -->
+                            <div class="flex items-center gap-2 shrink-0 border-t sm:border-t-0 pt-3 sm:pt-0 border-outline-variant/30">
+                                @if($order->status === 'Diproses')
+                                    <button 
+                                        wire:click="selesaiPengerjaanLangsung({{ $order->id }})" 
+                                        type="button"
+                                        class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-emerald-600/20">
+                                        <span class="material-symbols-outlined text-[18px]">check</span>
+                                        <span>Selesai</span>
+                                    </button>
+                                    <button 
+                                        wire:click="selesaiPengerjaan({{ $order->id }})" 
+                                        type="button"
+                                        class="bg-primary hover:bg-primary-fixed text-on-primary px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-primary/20">
+                                        <span class="material-symbols-outlined text-[18px]">point_of_sale</span>
+                                        <span>Kasir/POS</span>
+                                    </button>
+                                @elseif($order->status === 'Menunggu')
+                                    <button 
+                                        wire:click="mulaiPengerjaan({{ $order->id }})" 
+                                        type="button"
+                                        class="bg-primary hover:bg-primary-fixed text-on-primary px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-primary/20">
+                                        <span class="material-symbols-outlined text-[18px]">play_arrow</span>
+                                        <span>Mulai Pengerjaan</span>
+                                    </button>
+                                @else
+                                    <span class="text-xs text-on-surface-variant px-3 py-1.5 bg-surface-container-high rounded-lg flex items-center gap-1">
+                                        <span class="material-symbols-outlined text-[16px] text-emerald-400">check_circle</span>
+                                        <span>Job Selesai</span>
+                                    </span>
+                                @endif
+                            </div>
+                        </article>
+                    @empty
+                        <div class="bg-surface-container shadow-md rounded-2xl p-8 text-center border-2 border-dashed border-outline-variant/50">
+                            <span class="material-symbols-outlined text-4xl text-on-surface-variant mb-2">event_busy</span>
+                            <h4 class="text-base font-bold text-on-surface">Tidak ada orderan untuk kriteria ini</h4>
+                            <p class="text-xs text-on-surface-variant mt-1">Coba ganti filter tanggal atau status untuk melihat jadwal lainnya.</p>
+                            <button 
+                                wire:click="$set('filterTanggal', 'all'); $set('filterStatus', 'all');" 
+                                type="button"
+                                class="mt-4 px-4 py-2 bg-primary/20 text-primary hover:bg-primary/30 rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1.5">
+                                <span class="material-symbols-outlined text-[16px]">visibility</span>
+                                <span>Tampilkan Semua Orderan</span>
+                            </button>
+                        </div>
+                    @endforelse
+                </div>
+            </section>
+
+            <!-- Right Column: Aksi Cepat & Info Kapster (col-span-1) -->
+            <aside class="lg:col-span-1 flex flex-col gap-4 text-on-surface">
+                <div class="bg-surface-container shadow-md rounded-2xl p-5 flex flex-col gap-4 border border-outline-variant/30">
+                    <h3 class="font-bold text-base text-on-surface flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary text-xl">bolt</span>
+                        <span>Aksi Cepat Kapster</span>
+                    </h3>
+
+                    <a href="{{ route('admin.antrean') }}" class="w-full bg-primary/10 border-2 border-dashed border-primary/50 text-primary px-4 py-3.5 rounded-xl font-bold text-xs hover:bg-primary/20 hover:border-primary transition-all flex items-center justify-center gap-2">
+                        <span class="material-symbols-outlined text-lg">person_add</span>
+                        <span>Input Pelanggan Walk-In</span>
+                    </a>
+
+                    <div class="w-full h-px bg-outline-variant/30 my-1"></div>
+
+                    <a href="{{ route('admin.antrean') }}" class="w-full bg-surface-container-high text-on-surface px-4 py-3 rounded-xl text-xs font-semibold hover:bg-surface-container-highest hover:text-primary transition-all flex items-center justify-between shadow-sm">
+                        <div class="flex items-center gap-2.5">
+                            <span class="material-symbols-outlined text-primary text-[18px]">view_kanban</span>
+                            <span>Papan Antrean Terpadu</span>
+                        </div>
+                        <span class="material-symbols-outlined text-primary text-[16px]">chevron_right</span>
+                    </a>
+
+                    <a href="{{ route('admin.stok') }}" class="w-full bg-surface-container-high text-on-surface px-4 py-3 rounded-xl text-xs font-semibold hover:bg-surface-container-highest hover:text-primary transition-all flex items-center justify-between shadow-sm">
+                        <div class="flex items-center gap-2.5">
+                            <span class="material-symbols-outlined text-primary text-[18px]">inventory_2</span>
+                            <span>Lapor Ekstra (Silet / Tisu)</span>
+                        </div>
+                        <span class="material-symbols-outlined text-primary text-[16px]">chevron_right</span>
+                    </a>
+
+                    <a href="{{ route('staff.absensi') }}" class="w-full bg-surface-container-high text-on-surface px-4 py-3 rounded-xl text-xs font-semibold hover:bg-surface-container-highest hover:text-primary transition-all flex items-center justify-between shadow-sm">
+                        <div class="flex items-center gap-2.5">
+                            <span class="material-symbols-outlined text-primary text-[18px]">how_to_reg</span>
+                            <span>Absensi Kehadiran</span>
+                        </div>
+                        <span class="material-symbols-outlined text-primary text-[16px]">chevron_right</span>
+                    </a>
+                </div>
+
+                <!-- Info Pelayanan Hari Ini -->
+                <div class="bg-surface-container/60 rounded-2xl p-5 border border-outline-variant/30 text-xs text-on-surface-variant space-y-2.5">
+                    <span class="font-bold text-on-surface block text-sm">Petunjuk Operasional</span>
+                    <p class="leading-relaxed">
+                        1. Klik <strong>Mulai Pengerjaan</strong> saat pelanggan sudah duduk di kursi Anda. Status akan otomatis berubah menjadi "Sedang Diproses" di papan antrean toko dan homepage pelanggan.
+                    </p>
+                    <p class="leading-relaxed">
+                        2. Setelah selesai mencukur, klik <strong>Selesai</strong> jika tanpa transaksi kasir tambahan, atau klik <strong>Kasir/POS</strong> untuk menyelesaikan pembayaran.
+                    </p>
+                    <p class="leading-relaxed">
+                        3. Seluruh perubahan status langsung tersinkronisasi otomatis ke Google Spreadsheet secara real-time.
+                    </p>
+                </div>
+            </aside>
+        </div>
+    </div>
 </div>
