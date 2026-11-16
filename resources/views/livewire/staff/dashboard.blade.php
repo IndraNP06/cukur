@@ -445,7 +445,7 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
                         <span>Aksi Cepat Kapster</span>
                     </h3>
 
-                    <a href="{{ route('admin.antrean') }}" class="w-full bg-primary/10 border-2 border-dashed border-primary/50 text-primary px-4 py-3.5 rounded-xl font-bold text-xs hover:bg-primary/20 hover:border-primary transition-all flex items-center justify-center gap-2">
+                    <a href="{{ route('admin.antrean', ['action' => 'walkin']) }}" class="w-full bg-primary/10 border-2 border-dashed border-primary/50 text-primary px-4 py-3.5 rounded-xl font-bold text-xs hover:bg-primary/20 hover:border-primary transition-all flex items-center justify-center gap-2">
                         <span class="material-symbols-outlined text-lg">person_add</span>
                         <span>Input Pelanggan Walk-In</span>
                     </a>

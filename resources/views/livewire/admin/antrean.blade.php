@@ -22,9 +22,13 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
     public $walkInTime = null;
 
     public function mount() {
-        if (auth()->check() && auth()->user()->role === 'Kapster') {
+        if (auth()->check() && (auth()->user()->role === 'Kapster' || (method_exists(auth()->user(), 'hasRole') && auth()->user()->hasRole('Kapster')))) {
             $this->filterKapster = (string)auth()->id();
             $this->walkInKapster = auth()->id();
+        }
+
+        if (request()->query('action') === 'walkin') {
+            $this->openWalkInModal();
         }
 
         // Sinkronkan data antrean terbaru dari Google Spreadsheet saat pertama kali dibuka
@@ -34,6 +38,18 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
                 cache()->put('sheets_sync_antrean_board', true, now()->addSeconds(10));
             }
         } catch (\Throwable $e) {}
+    }
+
+    public function openWalkInModal() {
+        $this->resetValidation();
+        $this->reset(['walkInName', 'walkInLayanan', 'walkInTime']);
+        if (auth()->check() && (auth()->user()->role === 'Kapster' || (method_exists(auth()->user(), 'hasRole') && auth()->user()->hasRole('Kapster')))) {
+            $this->walkInKapster = auth()->id();
+        } else {
+            $this->walkInKapster = 'any';
+        }
+        $this->walkInTime = Carbon::now()->format('H:i:s');
+        $this->showWalkInModal = true;
     }
 
     public function syncFromSheets() {
@@ -77,70 +93,87 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
     }
 
     public function saveWalkIn() {
+        if (auth()->check() && (auth()->user()->role === 'Kapster' || (method_exists(auth()->user(), 'hasRole') && auth()->user()->hasRole('Kapster')))) {
+            $this->walkInKapster = auth()->id();
+        }
+
+        if (empty($this->walkInTime)) {
+            $this->walkInTime = Carbon::now()->format('H:i:s');
+        }
+
         $this->validate([
             'walkInName' => 'required|string|max:255',
-            'walkInLayanan' => 'required',
+            'walkInLayanan' => 'required|exists:layanan,id',
             'walkInKapster' => 'required',
             'walkInTime' => 'required'
         ]);
 
-        $dummyEmail = 'walkin_' . time() . '_' . Str::random(5) . '@rancukurin.local';
-        $user = User::create([
-            'nama' => $this->walkInName . ' (Walk-In)',
-            'email' => $dummyEmail,
-            'password' => bcrypt('password123'),
-        ]);
-        $user->assignRole('pelanggan');
-
-        $kapsterId = $this->walkInKapster;
-        if ($kapsterId === 'any') {
-            $kapster = User::whereHas('roles', function($q){$q->where('name', 'Kapster');})->inRandomOrder()->first();
-            if (!$kapster) {
-                $this->addError('walkInKapster', 'Mohon maaf, saat ini tidak ada kapster yang tersedia.');
-                return;
-            }
-            $kapsterId = $kapster->id;
-        }
-
-        $tanggalWalkIn = Carbon::today()->format('Y-m-d');
-        if ($this->filterTanggal === 'tomorrow') {
-            $tanggalWalkIn = Carbon::tomorrow()->format('Y-m-d');
-        } elseif ($this->filterTanggal === 'custom' && !empty($this->customTanggal)) {
-            $tanggalWalkIn = $this->customTanggal;
-        }
-
-        $antrean = AntreanPemesanan::create([
-            'pelanggan_id' => $user->id,
-            'kapster_id' => $kapsterId,
-            'layanan_id' => $this->walkInLayanan,
-            'tipe_antrean' => 'WalkIn',
-            'nomor_antrean' => 'WLK-' . strtoupper(Str::random(5)),
-            'tanggal' => $tanggalWalkIn,
-            'waktu_estimasi_mulai' => $this->walkInTime,
-            'status' => 'Menunggu'
-        ]);
-
         try {
-            app(\App\Services\GoogleSheetsService::class)->appendRow('antrean_pemesanan', [
-                'id' => $antrean->id,
-                'nomor_antrean' => $antrean->nomor_antrean,
-                'pelanggan_id' => $antrean->pelanggan_id,
-                'kapster_id' => $antrean->kapster_id,
-                'layanan_id' => $antrean->layanan_id,
-                'tipe_antrean' => $antrean->tipe_antrean,
-                'tanggal' => $antrean->tanggal,
-                'waktu_estimasi_mulai' => $antrean->waktu_estimasi_mulai,
-                'status' => $antrean->status,
-                'created_at' => now()->toDateTimeString(),
+            $dummyEmail = 'walkin_' . time() . '_' . Str::random(5) . '@rancukurin.local';
+            $user = User::create([
+                'nama' => $this->walkInName . ' (Walk-In)',
+                'email' => $dummyEmail,
+                'password' => bcrypt('password123'),
+                'role' => 'Pelanggan',
             ]);
-        } catch (\Throwable $e) {}
+            try {
+                $user->assignRole('Pelanggan');
+            } catch (\Throwable $e) {}
 
-        $this->showWalkInModal = false;
-        $this->reset(['walkInName', 'walkInLayanan', 'walkInTime']);
-        if (auth()->check() && auth()->user()->role === 'Kapster') {
-            $this->walkInKapster = auth()->id();
-        } else {
-            $this->reset('walkInKapster');
+            $kapsterId = $this->walkInKapster;
+            if ($kapsterId === 'any' || empty($kapsterId)) {
+                $kapster = User::whereHas('roles', function($q){$q->where('name', 'Kapster');})->inRandomOrder()->first();
+                if (!$kapster) {
+                    $this->addError('walkInKapster', 'Mohon maaf, saat ini tidak ada kapster yang tersedia.');
+                    return;
+                }
+                $kapsterId = $kapster->id;
+            }
+
+            $tanggalWalkIn = Carbon::today()->format('Y-m-d');
+            if ($this->filterTanggal === 'tomorrow') {
+                $tanggalWalkIn = Carbon::tomorrow()->format('Y-m-d');
+            } elseif ($this->filterTanggal === 'custom' && !empty($this->customTanggal)) {
+                $tanggalWalkIn = $this->customTanggal;
+            }
+
+            $antrean = AntreanPemesanan::create([
+                'pelanggan_id' => $user->id,
+                'kapster_id' => $kapsterId,
+                'layanan_id' => $this->walkInLayanan,
+                'tipe_antrean' => 'WalkIn',
+                'nomor_antrean' => 'WLK-' . strtoupper(Str::random(5)),
+                'tanggal' => $tanggalWalkIn,
+                'waktu_estimasi_mulai' => $this->walkInTime,
+                'status' => 'Menunggu'
+            ]);
+
+            try {
+                app(\App\Services\GoogleSheetsService::class)->appendRow('antrean_pemesanan', [
+                    'id' => $antrean->id,
+                    'nomor_antrean' => $antrean->nomor_antrean,
+                    'pelanggan_id' => $antrean->pelanggan_id,
+                    'kapster_id' => $antrean->kapster_id,
+                    'layanan_id' => $antrean->layanan_id,
+                    'tipe_antrean' => $antrean->tipe_antrean,
+                    'tanggal' => $antrean->tanggal,
+                    'waktu_estimasi_mulai' => $antrean->waktu_estimasi_mulai,
+                    'status' => $antrean->status,
+                    'created_at' => now()->toDateTimeString(),
+                ]);
+            } catch (\Throwable $e) {}
+
+            $this->showWalkInModal = false;
+            $this->reset(['walkInName', 'walkInLayanan', 'walkInTime']);
+            if (auth()->check() && (auth()->user()->role === 'Kapster' || (method_exists(auth()->user(), 'hasRole') && auth()->user()->hasRole('Kapster')))) {
+                $this->walkInKapster = auth()->id();
+            } else {
+                $this->reset('walkInKapster');
+            }
+
+            session()->flash('sync_success', 'Antrean Walk-In berhasil ditambahkan! Nomor Antrean: ' . $antrean->nomor_antrean);
+        } catch (\Throwable $e) {
+            $this->addError('walkInName', 'Gagal menambahkan antrean: ' . $e->getMessage());
         }
     }
 
@@ -291,7 +324,7 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
             </button>
 
             <!-- Action Button -->
-            <button wire:click="$set('showWalkInModal', true)" class="bg-primary hover:bg-primary-fixed text-on-primary text-xs font-bold rounded-xl px-4 py-2.5 flex items-center justify-center gap-1.5 transition-all shadow-md shadow-primary/20 shrink-0">
+            <button wire:click="openWalkInModal" class="bg-primary hover:bg-primary-fixed text-on-primary text-xs font-bold rounded-xl px-4 py-2.5 flex items-center justify-center gap-1.5 transition-all shadow-md shadow-primary/20 shrink-0 cursor-pointer">
                 <span class="material-symbols-outlined text-[18px]">add</span>
                 <span>Input Walk-In</span>
             </button>
@@ -603,6 +636,13 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
                     <div class="space-y-2 pt-2">
                         <label class="block text-xs uppercase font-bold text-on-surface-variant tracking-wider">Pilih Jam</label>
                         <div class="grid grid-cols-4 gap-2">
+                            <label class="cursor-pointer col-span-2">
+                                <input wire:model="walkInTime" value="{{ Carbon\Carbon::now()->format('H:i:s') }}" class="peer sr-only" type="radio">
+                                <div class="py-2 rounded-lg border border-outline-variant/30 bg-surface-container text-on-surface text-center hover:bg-surface-container-high transition-colors text-xs font-mono peer-checked:border-primary peer-checked:bg-primary/15 peer-checked:text-primary font-bold flex items-center justify-center gap-1">
+                                    <span class="material-symbols-outlined text-sm">schedule</span>
+                                    <span>Sekarang ({{ Carbon\Carbon::now()->format('H:i') }})</span>
+                                </div>
+                            </label>
                             @foreach($timeSlots as $time)
                                 <label class="cursor-pointer">
                                     <input wire:model="walkInTime" value="{{ $time }}" class="peer sr-only" type="radio">
@@ -617,11 +657,12 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
                 </div>
                 <!-- Footer -->
                 <div class="p-5 bg-surface-container-highest border-t border-outline-variant/30 flex items-center justify-end gap-3">
-                    <button wire:click="$set('showWalkInModal', false)" type="button" class="px-4 py-2 text-xs font-semibold text-on-surface-variant hover:text-on-surface transition-colors">
+                    <button wire:click="$set('showWalkInModal', false)" type="button" class="px-4 py-2 text-xs font-semibold text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer">
                         Batal
                     </button>
-                    <button wire:click="saveWalkIn" type="button" class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold rounded-xl hover:bg-primary-fixed transition-all flex items-center gap-1.5 shadow-md shadow-primary/20">
-                        <span class="material-symbols-outlined text-[16px]">check</span>
+                    <button wire:click="saveWalkIn" wire:loading.attr="disabled" type="button" class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold rounded-xl hover:bg-primary-fixed transition-all flex items-center gap-1.5 shadow-md shadow-primary/20 cursor-pointer">
+                        <span wire:loading.remove wire:target="saveWalkIn" class="material-symbols-outlined text-[16px]">check</span>
+                        <span wire:loading wire:target="saveWalkIn" class="material-symbols-outlined text-[16px] animate-spin">refresh</span>
                         <span>Simpan Antrean</span>
                     </button>
                 </div>
