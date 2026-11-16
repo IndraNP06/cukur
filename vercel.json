@@ -47,6 +47,7 @@
     "DB_DATABASE": "/tmp/database.sqlite",
     "GOOGLE_SHEETS_ID": "16oP7uh_2RwNdQwW7ZBJFk12gq0Lv94dH4xPxU54ub0k",
     "GOOGLE_SHEETS_WEBHOOK_URL": "https://script.google.com/macros/s/AKfycbzMopEjpSC3tplC2qZOvSc44llTtB-I6RpM9Gn-XXu27kTMEYpmjvG7qWxH0hvdwfAH/exec",
+    "APP_TIMEZONE": "Asia/Jakarta",
     "LOG_CHANNEL": "stderr"
   }
 }

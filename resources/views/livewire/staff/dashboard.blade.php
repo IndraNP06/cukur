@@ -12,6 +12,28 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
     public $customTanggal = '';
     public $filterStatus = 'active'; // 'active', 'Menunggu', 'Diproses', 'Selesai', 'all'
 
+    public function mount()
+    {
+        // Sinkronkan data antrean terbaru dari Google Spreadsheet saat pertama kali dibuka
+        try {
+            if (!cache()->has('sheets_sync_kapster_' . auth()->id())) {
+                app(\App\Services\GoogleSheetsService::class)->pullTable('antrean_pemesanan');
+                cache()->put('sheets_sync_kapster_' . auth()->id(), true, now()->addSeconds(10));
+            }
+        } catch (\Throwable $e) {}
+    }
+
+    public function syncFromSheets()
+    {
+        try {
+            app(\App\Services\GoogleSheetsService::class)->pullTable('antrean_pemesanan');
+            cache()->forget('sheets_sync_kapster_' . auth()->id());
+            session()->flash('sync_success', 'Data antrean job Anda berhasil diperbarui langsung dari Google Spreadsheet!');
+        } catch (\Throwable $e) {
+            session()->flash('sync_error', 'Gagal menyinkronkan data: ' . $e->getMessage());
+        }
+    }
+
     public function mulaiPengerjaan($id)
     {
         $antrean = AntreanPemesanan::find($id);
@@ -47,6 +69,14 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
 
     public function with()
     {
+        // Auto-pull dari Google Sheets jika cache habis (setiap 10 detik saat wire:poll)
+        try {
+            if (!cache()->has('sheets_sync_kapster_' . auth()->id())) {
+                app(\App\Services\GoogleSheetsService::class)->pullTable('antrean_pemesanan');
+                cache()->put('sheets_sync_kapster_' . auth()->id(), true, now()->addSeconds(10));
+            }
+        } catch (\Throwable $e) {}
+
         $user = auth()->user();
         $today = Carbon::today()->toDateString();
         $tomorrow = Carbon::tomorrow()->toDateString();
@@ -121,18 +151,39 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
                 </h1>
                 <p class="text-sm text-on-surface-variant">Berikut adalah daftar pesanan &amp; giliran potong rambut khusus untuk Anda.</p>
             </div>
-            <div class="flex items-center gap-3 bg-surface-container-high rounded-full px-5 py-2.5 shadow-md w-fit">
-                <div class="w-3 h-3 rounded-full {{ $shiftHariIni && $shiftHariIni->status === 'Hadir' ? 'bg-primary shadow-[0_0_12px_rgba(255,193,116,0.6)] animate-pulse' : 'bg-surface-variant' }}"></div>
-                <span class="text-label-md font-label-md text-on-surface-variant text-sm">
-                    @if($shiftHariIni && $shiftHariIni->status === 'Hadir')
-                        Shift {{ \Carbon\Carbon::parse($shiftHariIni->jam_mulai)->format('H:i') }} - {{ \Carbon\Carbon::parse($shiftHariIni->jam_selesai)->format('H:i') }}
-                    @else
-                        Off Shift
-                    @endif
-                    <span class="mx-2 opacity-50">|</span> {{ \Carbon\Carbon::now()->translatedFormat('l, d M Y') }}
-                </span>
+            <div class="flex flex-wrap items-center gap-3">
+                <button wire:click="syncFromSheets" wire:loading.attr="disabled"
+                    class="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-full bg-surface-container-high hover:bg-surface-bright text-primary border border-primary/30 transition shadow-sm cursor-pointer">
+                    <span wire:loading.remove wire:target="syncFromSheets" class="material-symbols-outlined text-sm">sync</span>
+                    <span wire:loading wire:target="syncFromSheets" class="material-symbols-outlined text-sm animate-spin">refresh</span>
+                    <span>Sinkron Sheets</span>
+                </button>
+                <div class="flex items-center gap-3 bg-surface-container-high rounded-full px-5 py-2.5 shadow-md w-fit">
+                    <div class="w-3 h-3 rounded-full {{ $shiftHariIni && $shiftHariIni->status === 'Hadir' ? 'bg-primary shadow-[0_0_12px_rgba(255,193,116,0.6)] animate-pulse' : 'bg-surface-variant' }}"></div>
+                    <span class="text-label-md font-label-md text-on-surface-variant text-sm">
+                        @if($shiftHariIni && $shiftHariIni->status === 'Hadir')
+                            Shift {{ \Carbon\Carbon::parse($shiftHariIni->jam_mulai)->format('H:i') }} - {{ \Carbon\Carbon::parse($shiftHariIni->jam_selesai)->format('H:i') }}
+                        @else
+                            Off Shift
+                        @endif
+                        <span class="mx-2 opacity-50">|</span> {{ \Carbon\Carbon::now()->translatedFormat('l, d M Y') }}
+                    </span>
+                </div>
             </div>
         </header>
+
+        @if (session()->has('sync_success'))
+            <div class="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-sm flex items-center gap-2">
+                <span class="material-symbols-outlined text-base">check_circle</span>
+                <span>{{ session('sync_success') }}</span>
+            </div>
+        @endif
+        @if (session()->has('sync_error'))
+            <div class="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-sm flex items-center gap-2">
+                <span class="material-symbols-outlined text-base">error</span>
+                <span>{{ session('sync_error') }}</span>
+            </div>
+        @endif
 
         <!-- Summary Widgets (3-column grid) -->
         <section class="grid grid-cols-1 md:grid-cols-4 gap-4 relative z-10 text-on-surface">
