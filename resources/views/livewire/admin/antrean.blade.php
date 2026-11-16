@@ -74,16 +74,31 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
  $kapsterId = $kapster->id;
  }
 
- AntreanPemesanan::create([
- 'pelanggan_id' => $user->id,
- 'kapster_id' => $kapsterId,
- 'layanan_id' => $this->walkInLayanan,
- 'tipe_antrean' => 'WalkIn',
- 'nomor_antrean' => 'WLK-' . strtoupper(Str::random(5)),
- 'tanggal' => Carbon::today()->format('Y-m-d'),
- 'waktu_estimasi_mulai' => $this->walkInTime,
- 'status' => 'Menunggu'
- ]);
+        $antrean = AntreanPemesanan::create([
+            'pelanggan_id' => $user->id,
+            'kapster_id' => $kapsterId,
+            'layanan_id' => $this->walkInLayanan,
+            'tipe_antrean' => 'WalkIn',
+            'nomor_antrean' => 'WLK-' . strtoupper(Str::random(5)),
+            'tanggal' => Carbon::today()->format('Y-m-d'),
+            'waktu_estimasi_mulai' => $this->walkInTime,
+            'status' => 'Menunggu'
+        ]);
+
+        try {
+            app(\App\Services\GoogleSheetsService::class)->appendRow('antrean_pemesanan', [
+                'id' => $antrean->id,
+                'pelanggan_id' => $antrean->pelanggan_id,
+                'kapster_id' => $antrean->kapster_id,
+                'layanan_id' => $antrean->layanan_id,
+                'tipe_antrean' => $antrean->tipe_antrean,
+                'nomor_antrean' => $antrean->nomor_antrean,
+                'tanggal' => $antrean->tanggal,
+                'waktu_estimasi_mulai' => $antrean->waktu_estimasi_mulai,
+                'status' => $antrean->status,
+                'created_at' => now()->toDateTimeString(),
+            ]);
+        } catch (\Throwable $e) {}
 
  $this->showWalkInModal = false;
  $this->reset(['walkInName', 'walkInLayanan', 'walkInKapster', 'walkInTime']);

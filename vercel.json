@@ -39,6 +39,10 @@
     "APP_SERVICES_CACHE": "/tmp/services.php",
     "VIEW_COMPILED_PATH": "/tmp/storage/framework/views",
     "CACHE_STORE": "array",
+    "SESSION_DRIVER": "cookie",
+    "DB_CONNECTION": "sqlite",
+    "DB_DATABASE": "/tmp/database.sqlite",
+    "GOOGLE_SHEETS_ID": "16oP7uh_2RwNdQwW7ZBJFk12gq0Lv94dH4xPxU54ub0k",
     "LOG_CHANNEL": "stderr"
   }
 }

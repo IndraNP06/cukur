@@ -10,87 +10,82 @@ use Illuminate\Support\Facades\Schema;
 class GoogleSheetsSyncCommand extends Command
 {
     protected $signature = 'sheets:sync 
-                            {--table= : Sinkronkan tabel tertentu (layanan, barang, pengguna, antrean_pemesanan, transaksi)}
+                            {--pull : Tarik data dari Google Spreadsheet ke database}
+                            {--table= : Tabel tertentu (layanan, barang, pengguna, antrean_pemesanan, dll.)}
                             {--export-csv : Ekspor semua data ke format file CSV di storage/app/sheets_export}';
 
-    protected $description = 'Sinkronisasi data database lokal Ran Cukurin ke Google Spreadsheet';
-
-    protected array $supportedTables = [
-        'layanan',
-        'barang',
-        'pengguna',
-        'antrean_pemesanan',
-        'transaksi',
-        'galeris',
-        'banners',
-        'faqs',
-        'voucher'
-    ];
-
-    protected array $hiddenColumns = [
-        'password',
-        'remember_token',
-        'two_factor_secret',
-        'two_factor_recovery_codes'
-    ];
+    protected $description = 'Sinkronisasi data dua arah antara database lokal dan Google Spreadsheet';
 
     public function handle(GoogleSheetsService $sheetsService)
     {
         if ($this->option('export-csv')) {
-            $this->exportCsv();
+            $this->exportCsv($sheetsService);
             return Command::SUCCESS;
         }
 
-        if (!$sheetsService->isConfigured()) {
+        if ($this->option('pull')) {
+            return $this->pullFromSheets($sheetsService);
+        }
+
+        // Default: Push ke Google Sheets
+        return $this->pushToSheets($sheetsService);
+    }
+
+    protected function pullFromSheets(GoogleSheetsService $sheetsService): int
+    {
+        $specificTable = $this->option('table');
+        $tables = $specificTable ? [$specificTable] : $sheetsService->tables;
+
+        $this->info('Memulai penarikan data dari Google Spreadsheet...');
+
+        foreach ($tables as $table) {
+            $this->line("Menarik tabel: $table...");
+            $res = $sheetsService->pullTable($table);
+            if ($res['success']) {
+                $count = $res['count'] ?? 0;
+                $this->info("✔ $table: Berhasil memuat $count baris.");
+            } else {
+                $this->error("✖ $table: " . ($res['message'] ?? 'Gagal menarik data'));
+            }
+        }
+
+        $this->info('Penarikan data selesai.');
+        return Command::SUCCESS;
+    }
+
+    protected function pushToSheets(GoogleSheetsService $sheetsService): int
+    {
+        if (empty(env('GOOGLE_SHEETS_WEBHOOK_URL'))) {
             $this->error('GOOGLE_SHEETS_WEBHOOK_URL belum dikonfigurasi di file .env');
-            $this->line('');
-            $this->info('Langkah mudah untuk menghubungkan:');
-            $this->line('1. Buka spreadsheet Anda: https://docs.google.com/spreadsheets/d/' . $sheetsService->getSpreadsheetId());
-            $this->line('2. Buka menu Extensions (Ekstensi) > Apps Script.');
-            $this->line('3. Tempelkan kode dari file: docs/google_apps_script.js');
-            $this->line('4. Klik Deploy > New deployment > Web app (Who has access: Anyone).');
-            $this->line('5. Salin Web App URL dan tambahkan ke .env:');
-            $this->comment('   GOOGLE_SHEETS_WEBHOOK_URL="https://script.google.com/macros/s/.../exec"');
-            $this->line('');
-            $this->info('Sementara itu, file CSV data saat ini juga sudah disiapkan di storage/app/sheets_export!');
-            $this->comment('   Jalankan: php artisan sheets:sync --export-csv');
+            $this->line('Untuk menarik data dari Google Sheets (Pull), gunakan:');
+            $this->comment('   php artisan sheets:sync --pull');
             return Command::FAILURE;
         }
 
         $specificTable = $this->option('table');
-        $tablesToSync = $specificTable ? [$specificTable] : $this->supportedTables;
+        $tablesToSync = $specificTable ? [$specificTable] : $sheetsService->tables;
 
-        $this->info('Memulai sinkronisasi data ke Google Spreadsheet...');
-        
+        $this->info('Mengirim data database ke Google Spreadsheet...');
         foreach ($tablesToSync as $table) {
-            if (!Schema::hasTable($table)) {
-                $this->warn("Tabel '$table' tidak ditemukan di database. Dilewati.");
-                continue;
-            }
-
-            $columns = $this->getTableColumns($table);
+            if (!Schema::hasTable($table)) continue;
             $this->line("Mengirim tabel: $table...");
-            $result = $sheetsService->syncTable($table, $columns);
+            $columns = Schema::getColumnListing($table);
+            $columns = array_diff($columns, ['password', 'remember_token']);
+            $result = $sheetsService->syncTable($table, array_values($columns));
 
             if ($result['success'] ?? false) {
-                $this->info("✔ Berhasil sinkronisasi tabel: $table");
+                $this->info("✔ Berhasil kirim tabel: $table");
             } else {
                 $msg = $result['message'] ?? json_encode($result);
-                $this->error("✖ Gagal sinkronisasi tabel $table: $msg");
+                $this->error("✖ Gagal kirim tabel $table: $msg");
             }
         }
 
-        $this->info('Sinkronisasi selesai.');
+        $this->info('Sinkronisasi push selesai.');
         return Command::SUCCESS;
     }
 
-    protected function getTableColumns(string $table): array
-    {
-        $all = Schema::getColumnListing($table);
-        return array_values(array_diff($all, $this->hiddenColumns));
-    }
-
-    protected function exportCsv(): void
+    protected function exportCsv(GoogleSheetsService $sheetsService): void
     {
         $dir = storage_path('app/sheets_export');
         if (!is_dir($dir)) {
@@ -99,20 +94,15 @@ class GoogleSheetsSyncCommand extends Command
 
         $this->info("Mengekspor tabel ke CSV di direktori: $dir");
 
-        foreach ($this->supportedTables as $table) {
-            if (!Schema::hasTable($table)) {
-                continue;
-            }
-
-            $columns = $this->getTableColumns($table);
+        foreach ($sheetsService->tables as $table) {
+            if (!Schema::hasTable($table)) continue;
+            $columns = Schema::getColumnListing($table);
+            $columns = array_diff($columns, ['password', 'remember_token']);
             $rows = DB::table($table)->get($columns);
             $filePath = $dir . DIRECTORY_SEPARATOR . $table . '.csv';
             $fp = fopen($filePath, 'w');
+            fputcsv($fp, array_values($columns));
 
-            // Header
-            fputcsv($fp, $columns);
-
-            // Data
             foreach ($rows as $row) {
                 $rowArray = [];
                 foreach ($columns as $col) {
@@ -124,12 +114,10 @@ class GoogleSheetsSyncCommand extends Command
                 }
                 fputcsv($fp, $rowArray);
             }
-
             fclose($fp);
             $this->line("✔ Tersimpan: {$table}.csv (" . count($rows) . " baris)");
         }
 
-        $this->info('Semua data berhasil diekspor ke format CSV!');
-        $this->info("Anda dapat mengimpor file ini langsung di Google Sheets: File > Import > Upload.");
+        $this->info('Semua data berhasil diekspor!');
     }
 }
