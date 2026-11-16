@@ -47,7 +47,15 @@ $sqlitePath = '/tmp/database.sqlite';
 putenv("DB_DATABASE={$sqlitePath}");
 $_ENV['DB_DATABASE'] = $sqlitePath;
 
-$isFreshDb = !file_exists($sqlitePath) || filesize($sqlitePath) === 0;
+$bundledDb = __DIR__ . '/../database/database.sqlite';
+if (!file_exists($sqlitePath) || filesize($sqlitePath) === 0) {
+    if (file_exists($bundledDb) && filesize($bundledDb) > 0) {
+        @copy($bundledDb, $sqlitePath);
+    } else {
+        @touch($sqlitePath);
+        $freshSetupNeeded = true;
+    }
+}
 
 // Autoloader Composer
 require __DIR__ . '/../vendor/autoload.php';
@@ -58,10 +66,9 @@ $app = require_once __DIR__ . '/../bootstrap/app.php';
 // Inisialisasi container & facade Laravel
 $app->make(ConsoleKernel::class)->bootstrap();
 
-// Jika container baru (database SQLite belum siap), lakukan migrasi dan tarik data dari Google Sheets
-if ($isFreshDb) {
+// Jika bundled database belum ada, jalankan migrasi & sinkronisasi awal
+if (!empty($freshSetupNeeded)) {
     try {
-        @touch($sqlitePath);
         Artisan::call('migrate', ['--force' => true]);
         Artisan::call('db:seed', ['--class' => 'RoleSeeder', '--force' => true]);
         Artisan::call('sheets:sync', ['--pull' => true]);

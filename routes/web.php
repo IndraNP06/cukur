@@ -64,4 +64,17 @@ Route::middleware(['auth'])->group(function () {
 // Public / Customer routes
 Volt::route('/booking', 'booking.wizard')->name('booking.wizard');
 
+// Sinkronisasi manual dari Google Spreadsheet
+Route::get('/sheets/pull', function (\App\Services\GoogleSheetsService $sheetsService) {
+    $results = [];
+    foreach ($sheetsService->tables as $table) {
+        $results[$table] = $sheetsService->pullTable($table);
+    }
+    return response()->json([
+        'status'  => 'success',
+        'message' => 'Sinkronisasi data dari Google Spreadsheet selesai.',
+        'details' => $results
+    ]);
+});
+
 // Auth routes

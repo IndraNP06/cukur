@@ -55,18 +55,30 @@ class GoogleSheetsService
         $url = "https://docs.google.com/spreadsheets/d/{$this->spreadsheetId}/gviz/tq?tqx=out:csv&sheet=" . urlencode($table);
 
         try {
-            $context = stream_context_create([
-                'http' => [
-                    'timeout' => 15,
-                    'header'  => "User-Agent: Mozilla/5.0\r\n"
-                ],
-                'ssl' => [
-                    'verify_peer' => false,
-                    'verify_peer_name' => false,
-                ]
-            ]);
+            $csvData = false;
+            try {
+                $response = Http::withoutVerifying()->timeout(15)->get($url);
+                if ($response->successful()) {
+                    $csvData = $response->body();
+                }
+            } catch (\Throwable $e) {
+                // cURL fallback
+            }
 
-            $csvData = @file_get_contents($url, false, $context);
+            if ($csvData === false || empty(trim($csvData))) {
+                $context = stream_context_create([
+                    'http' => [
+                        'timeout' => 15,
+                        'header'  => "User-Agent: Mozilla/5.0\r\n"
+                    ],
+                    'ssl' => [
+                        'verify_peer' => false,
+                        'verify_peer_name' => false,
+                    ]
+                ]);
+                $csvData = @file_get_contents($url, false, $context);
+            }
+
             if ($csvData === false || empty(trim($csvData))) {
                 return ['success' => false, 'message' => "Gagal mengambil data dari Google Sheets untuk sheet: $table"];
             }
