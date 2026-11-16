@@ -152,6 +152,21 @@ class GoogleSheetsService
                     }
                 }
 
+                // Khusus tabel voucher: isi default jika kuota_terpakai atau is_active kosong
+                if ($table === 'voucher') {
+                    if (!isset($record['kuota_terpakai']) || $record['kuota_terpakai'] === null) {
+                        $record['kuota_terpakai'] = 0;
+                    }
+                    if (!isset($record['is_active']) || $record['is_active'] === null || $record['is_active'] === '') {
+                        $record['is_active'] = 1;
+                    }
+                }
+
+                // Default untuk kolom boolean is_active di tabel lainnya jika null
+                if (array_key_exists('is_active', $record) && ($record['is_active'] === null || $record['is_active'] === '')) {
+                    $record['is_active'] = 1;
+                }
+
                 if (!empty($record)) {
                     try {
                         DB::table($table)->insert($record);

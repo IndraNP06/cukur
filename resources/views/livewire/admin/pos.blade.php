@@ -118,18 +118,25 @@ new #[Layout('components.layouts.admin')] #[Title('Sistem POS - Ran Cukurin')] c
  public function applyVoucher() {
  if (empty($this->voucherCode)) return;
 
- $voucher = Voucher::where('kode_voucher', strtoupper($this->voucherCode))
+ $today = now()->toDateString();
+ $voucher = Voucher::where('kode_voucher', strtoupper(trim($this->voucherCode)))
  ->where('is_active', true)
- ->where(function($q) {
- $q->whereNull('tanggal_mulai')->orWhere('tanggal_mulai', '<=', now());
+ ->where(function($q) use ($today) {
+ $q->whereNull('tgl_mulai')->orWhere('tgl_mulai', '<=', $today);
  })
- ->where(function($q) {
- $q->whereNull('tanggal_berakhir')->orWhere('tanggal_berakhir', '>=', now());
+ ->where(function($q) use ($today) {
+ $q->whereNull('tgl_berakhir')->orWhere('tgl_berakhir', '>=', $today);
  })
  ->first();
 
  if (!$voucher) {
  session()->flash('voucher_error', 'Voucher tidak valid atau kadaluarsa.');
+ $this->appliedVoucher = null;
+ return;
+ }
+
+ if ($voucher->kuota_maksimal > 0 && $voucher->kuota_terpakai >= $voucher->kuota_maksimal) {
+ session()->flash('voucher_error', 'Kuota voucher ini sudah habis.');
  $this->appliedVoucher = null;
  return;
  }

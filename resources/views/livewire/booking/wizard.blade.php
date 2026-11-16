@@ -59,29 +59,36 @@ new #[Layout('components.layouts.customer')] #[Title('Booking Reservasi - Ran Cu
  }
  }
 
- public function applyPromo() {
- if (empty($this->promoCode)) return;
+    public function applyPromo() {
+        if (empty($this->promoCode)) return;
 
- $voucher = Voucher::where('kode_voucher', strtoupper($this->promoCode))
- ->where('is_active', true)
- ->where(function($q) {
- $q->whereNull('tanggal_mulai')->orWhere('tanggal_mulai', '<=', now());
- })
- ->where(function($q) {
- $q->whereNull('tanggal_berakhir')->orWhere('tanggal_berakhir', '>=', now());
- })
- ->first();
+        $today = now()->toDateString();
+        $voucher = Voucher::where('kode_voucher', strtoupper(trim($this->promoCode)))
+            ->where('is_active', true)
+            ->where(function($q) use ($today) {
+                $q->whereNull('tgl_mulai')->orWhere('tgl_mulai', '<=', $today);
+            })
+            ->where(function($q) use ($today) {
+                $q->whereNull('tgl_berakhir')->orWhere('tgl_berakhir', '>=', $today);
+            })
+            ->first();
 
- if (!$voucher) {
- $this->addError('promoCode', 'Voucher tidak valid atau sudah kadaluarsa.');
- $this->appliedVoucher = null;
- return;
- }
+        if (!$voucher) {
+            $this->addError('promoCode', 'Voucher tidak valid atau sudah kadaluarsa.');
+            $this->appliedVoucher = null;
+            return;
+        }
 
- $this->appliedVoucher = $voucher;
- $this->resetErrorBag('promoCode');
- session()->flash('promo_success', "Voucher '{$voucher->kode_voucher}' berhasil diterapkan.");
- }
+        if ($voucher->kuota_maksimal > 0 && $voucher->kuota_terpakai >= $voucher->kuota_maksimal) {
+            $this->addError('promoCode', 'Kuota voucher ini sudah habis.');
+            $this->appliedVoucher = null;
+            return;
+        }
+
+        $this->appliedVoucher = $voucher;
+        $this->resetErrorBag('promoCode');
+        session()->flash('promo_success', "Voucher '{$voucher->kode_voucher}' berhasil diterapkan.");
+    }
 
  public function submitBooking() {
  if (!auth()->check()) {
@@ -145,7 +152,7 @@ new #[Layout('components.layouts.customer')] #[Title('Booking Reservasi - Ran Cu
 
  $diskon = 0;
  if ($this->appliedVoucher) {
- if ($this->appliedVoucher->tipe_diskon === 'persentase') {
+ if (in_array(strtolower($this->appliedVoucher->tipe_diskon), ['persen', 'persentase'])) {
  $diskon = $subtotal * ($this->appliedVoucher->nilai_diskon / 100);
  } else {
  $diskon = $this->appliedVoucher->nilai_diskon;
