@@ -67,9 +67,9 @@ class GoogleSheetsSyncCommand extends Command
 
         $this->info('Mengirim data database ke Google Spreadsheet...');
         foreach ($tablesToSync as $table) {
-            if (!Schema::hasTable($table)) continue;
+            if (!$sheetsService->tableExists($table)) continue;
             $this->line("Mengirim tabel: $table...");
-            $columns = Schema::getColumnListing($table);
+            $columns = $sheetsService->getTableColumns($table);
             $columns = array_diff($columns, ['password', 'remember_token']);
             $result = $sheetsService->syncTable($table, array_values($columns));
 
@@ -95,8 +95,8 @@ class GoogleSheetsSyncCommand extends Command
         $this->info("Mengekspor tabel ke CSV di direktori: $dir");
 
         foreach ($sheetsService->tables as $table) {
-            if (!Schema::hasTable($table)) continue;
-            $columns = Schema::getColumnListing($table);
+            if (!$sheetsService->tableExists($table)) continue;
+            $columns = $sheetsService->getTableColumns($table);
             $columns = array_diff($columns, ['password', 'remember_token']);
             $rows = DB::table($table)->get($columns);
             $filePath = $dir . DIRECTORY_SEPARATOR . $table . '.csv';

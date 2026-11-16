@@ -43,12 +43,32 @@ class GoogleSheetsService
         return $this->spreadsheetId;
     }
 
+    public function tableExists(string $table): bool
+    {
+        if (DB::getDriverName() === 'sqlite') {
+            $result = DB::select("SELECT name FROM sqlite_master WHERE type='table' AND name = ?", [$table]);
+            return !empty($result);
+        }
+        return Schema::hasTable($table);
+    }
+
+    public function getTableColumns(string $table): array
+    {
+        if (DB::getDriverName() === 'sqlite') {
+            $cols = DB::select("PRAGMA table_info(`{$table}`)");
+            return array_map(function($c) {
+                return is_array($c) ? $c['name'] : $c->name;
+            }, $cols);
+        }
+        return Schema::getColumnListing($table);
+    }
+
     /**
      * Tarik data dari tab Google Sheet langsung menggunakan Google Visualization CSV API
      */
     public function pullTable(string $table): array
     {
-        if (!Schema::hasTable($table)) {
+        if (!$this->tableExists($table)) {
             return ['success' => false, 'message' => "Tabel $table tidak ditemukan di skema database."];
         }
 
@@ -93,7 +113,7 @@ class GoogleSheetsService
                 return trim($h, " \t\n\r\0\x0B\"");
             }, $headers);
 
-            $availableColumns = Schema::getColumnListing($table);
+            $availableColumns = $this->getTableColumns($table);
             $validHeaders = array_intersect($headers, $availableColumns);
 
             $imported = 0;
