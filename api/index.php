@@ -6,9 +6,9 @@
  * dengan SQLite di direktori /tmp sebagai database cache serverless berkecepatan tinggi.
  */
 
-use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\Schema;
+use Illuminate\Contracts\Console\Kernel as ConsoleKernel;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 
 define('LARAVEL_START', microtime(true));
 
@@ -42,10 +42,7 @@ $sqlitePath = '/tmp/database.sqlite';
 putenv("DB_DATABASE={$sqlitePath}");
 $_ENV['DB_DATABASE'] = $sqlitePath;
 
-$isFreshDb = !file_exists($sqlitePath);
-if ($isFreshDb) {
-    @touch($sqlitePath);
-}
+$isFreshDb = !file_exists($sqlitePath) || filesize($sqlitePath) === 0;
 
 // Autoloader Composer
 require __DIR__ . '/../vendor/autoload.php';
@@ -53,14 +50,18 @@ require __DIR__ . '/../vendor/autoload.php';
 // Bootstrap Laravel
 $app = require_once __DIR__ . '/../bootstrap/app.php';
 
-// Jika container baru (database SQLite belum ada tabelnya), lakukan migrasi dan tarik data dari Google Sheets
-if ($isFreshDb || !Schema::hasTable('layanan')) {
+// Inisialisasi container & facade Laravel
+$app->make(ConsoleKernel::class)->bootstrap();
+
+// Jika container baru (database SQLite belum siap), lakukan migrasi dan tarik data dari Google Sheets
+if ($isFreshDb) {
     try {
+        @touch($sqlitePath);
         Artisan::call('migrate', ['--force' => true]);
         Artisan::call('db:seed', ['--class' => 'RoleSeeder', '--force' => true]);
         Artisan::call('sheets:sync', ['--pull' => true]);
     } catch (\Throwable $e) {
-        // Abaikan jika migrasi sedang berjalan
+        // Abaikan jika database sudah diinisialisasi
     }
 }
 
