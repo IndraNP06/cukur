@@ -228,7 +228,7 @@ class GoogleSheetsService
         }
 
         try {
-            $response = Http::timeout(10)->post($this->webhookUrl, [
+            $response = Http::withoutVerifying()->timeout(15)->post($this->webhookUrl, [
                 'action' => 'append_row',
                 'table'  => $table,
                 'data'   => $data,
@@ -250,7 +250,11 @@ class GoogleSheetsService
     public function syncTable(string $table, ?array $customColumns = null): array
     {
         if (empty($this->webhookUrl)) {
-            return ['success' => false, 'message' => 'GOOGLE_SHEETS_WEBHOOK_URL belum diset di .env'];
+            return ['success' => false, 'message' => 'GOOGLE_SHEETS_WEBHOOK_URL belum diset'];
+        }
+
+        if (!$this->tableExists($table)) {
+            return ['success' => false, 'message' => "Tabel $table tidak ditemukan"];
         }
 
         $query = DB::table($table);
@@ -266,12 +270,13 @@ class GoogleSheetsService
                 }
                 $rows[] = $filtered;
             } else {
+                unset($row['password'], $row['remember_token']);
                 $rows[] = $row;
             }
         }
 
         try {
-            $response = Http::timeout(30)->post($this->webhookUrl, [
+            $response = Http::withoutVerifying()->timeout(30)->post($this->webhookUrl, [
                 'action' => 'sync_table',
                 'table'  => $table,
                 'rows'   => $rows,

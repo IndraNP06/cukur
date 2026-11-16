@@ -72,7 +72,20 @@ Route::get('/sheets/pull', function (\App\Services\GoogleSheetsService $sheetsSe
     }
     return response()->json([
         'status'  => 'success',
-        'message' => 'Sinkronisasi data dari Google Spreadsheet selesai.',
+        'message' => 'Sinkronisasi tarik data dari Google Spreadsheet selesai.',
+        'details' => $results
+    ]);
+});
+
+// Sinkronisasi manual kirim database ke Google Spreadsheet
+Route::get('/sheets/push', function (\App\Services\GoogleSheetsService $sheetsService) {
+    $results = [];
+    foreach ($sheetsService->tables as $table) {
+        $results[$table] = $sheetsService->syncTable($table);
+    }
+    return response()->json([
+        'status'  => 'success',
+        'message' => 'Sinkronisasi kirim seluruh data ke Google Spreadsheet selesai.',
         'details' => $results
     ]);
 });
