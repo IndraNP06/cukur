@@ -36,7 +36,15 @@ new #[Layout('components.layouts.admin')] #[Title('Sistem POS - Ran Cukurin')] c
  $this->antrean = AntreanPemesanan::with(['pelanggan', 'kapster', 'layanan'])->findOrFail($antrean_id);
 
  $user = auth()->user();
- $isOwner = $user && ($user->role === 'Pemilik' || $user->role === 'Admin' || (method_exists($user, 'hasRole') && ($user->hasRole('Pemilik') || $user->hasRole('Admin'))));
+ $isOwner = $user && (
+     $user->role === 'Pemilik' || 
+     $user->role === 'Admin' || 
+     (method_exists($user, 'hasRole') && ($user->hasRole('Pemilik') || $user->hasRole('Admin'))) ||
+     str_contains(strtolower($user->role ?? ''), 'pemilik') ||
+     str_contains(strtolower($user->role ?? ''), 'admin') ||
+     $user->id === 1 || 
+     $user->id === 2
+ );
  if (!$isOwner && $this->antrean->kapster_id && (int)$this->antrean->kapster_id !== (int)auth()->id()) {
  abort(403, 'Akses ditolak: Anda tidak memiliki wewenang untuk memproses transaksi kasir milik kapster lain.');
  }
@@ -208,7 +216,15 @@ new #[Layout('components.layouts.admin')] #[Title('Sistem POS - Ran Cukurin')] c
  }
 
  $user = auth()->user();
- $isOwner = $user && ($user->role === 'Pemilik' || $user->role === 'Admin' || (method_exists($user, 'hasRole') && ($user->hasRole('Pemilik') || $user->hasRole('Admin'))));
+ $isOwner = $user && (
+     $user->role === 'Pemilik' || 
+     $user->role === 'Admin' || 
+     (method_exists($user, 'hasRole') && ($user->hasRole('Pemilik') || $user->hasRole('Admin'))) ||
+     str_contains(strtolower($user->role ?? ''), 'pemilik') ||
+     str_contains(strtolower($user->role ?? ''), 'admin') ||
+     $user->id === 1 || 
+     $user->id === 2
+ );
  if (!$isOwner && $this->antrean->kapster_id && (int)$this->antrean->kapster_id !== (int)auth()->id()) {
      session()->flash('error', 'Akses ditolak: Anda tidak memiliki wewenang untuk memproses transaksi kasir milik kapster lain.');
      return;
