@@ -58,60 +58,89 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
         }
     }
 
-    public function canManageAntrean($antrean): bool {
+    public function isOwner(): bool {
         if (!auth()->check()) return false;
         $user = auth()->user();
-        
-        // Owner / Pemilik / Admin memiliki wewenang penuh ke semua job dari kapster mana pun
-        $isOwner = $user->role === 'Pemilik' || 
-                   $user->role === 'Admin' || 
-                   (method_exists($user, 'hasRole') && ($user->hasRole('Pemilik') || $user->hasRole('Admin'))) ||
-                   str_contains(strtolower($user->role ?? ''), 'pemilik') ||
-                   str_contains(strtolower($user->role ?? ''), 'admin') ||
-                   $user->id === 1 || 
-                   $user->id === 2;
-
-        if ($isOwner) {
+        if (in_array((int)$user->id, [1, 2])) return true;
+        $role = strtolower($user->role ?? '');
+        if (str_contains($role, 'pemilik') || str_contains($role, 'owner') || str_contains($role, 'admin')) {
             return true;
         }
+        if (method_exists($user, 'hasRole')) {
+            return $user->hasRole('Pemilik') || $user->hasRole('Admin') || $user->hasRole('Owner');
+        }
+        return false;
+    }
 
+    public function canManageAntrean($antrean): bool {
+        if ($this->isOwner()) {
+            return true;
+        }
+        if (!auth()->check()) return false;
         $kapsterId = is_object($antrean) ? $antrean->kapster_id : ($antrean['kapster_id'] ?? null);
         if (!$kapsterId) {
             return true;
         }
-        return (int)$kapsterId === (int)$user->id;
+        return (int)$kapsterId === (int)auth()->id();
     }
 
     public function startProcess($id) {
         $antrean = AntreanPemesanan::find($id);
-        if (!$antrean) return;
+        if (!$antrean) {
+            session()->flash('sync_error', 'Antrean tidak ditemukan.');
+            return;
+        }
 
         if (!$this->canManageAntrean($antrean)) {
             session()->flash('sync_error', 'Akses ditolak: Anda tidak memiliki wewenang untuk memproses antrean kapster lain.');
             return;
         }
 
-        if ($antrean->status === 'Menunggu') {
-            $antrean->status = 'Diproses';
+        $antrean->status = 'Diproses';
+        if (empty($antrean->waktu_mulai_aktual)) {
             $antrean->waktu_mulai_aktual = Carbon::now()->format('H:i:s');
-            $antrean->save();
         }
+        $antrean->save();
+
+        session()->flash('sync_success', 'Antrean #' . $antrean->nomor_antrean . ' berhasil mulai diproses!');
     }
 
     public function finishProcess($id) {
         $antrean = AntreanPemesanan::find($id);
-        if (!$antrean) return;
+        if (!$antrean) {
+            session()->flash('sync_error', 'Antrean tidak ditemukan.');
+            return;
+        }
 
         if (!$this->canManageAntrean($antrean)) {
             session()->flash('sync_error', 'Akses ditolak: Anda tidak memiliki wewenang untuk menyelesaikan antrean kapster lain.');
             return;
         }
 
-        if ($antrean->status === 'Diproses') {
-            $antrean->status = 'Selesai';
-            $antrean->waktu_selesai_aktual = Carbon::now()->format('H:i:s');
-            $antrean->save();
+        $antrean->status = 'Selesai';
+        if (empty($antrean->waktu_mulai_aktual)) {
+            $antrean->waktu_mulai_aktual = Carbon::now()->format('H:i:s');
         }
+        $antrean->waktu_selesai_aktual = Carbon::now()->format('H:i:s');
+        $antrean->save();
+
+        session()->flash('sync_success', 'Antrean #' . $antrean->nomor_antrean . ' berhasil diselesaikan!');
+    }
+
+    public function resetToWaiting($id) {
+        $antrean = AntreanPemesanan::find($id);
+        if (!$antrean) return;
+
+        if (!$this->canManageAntrean($antrean)) {
+            session()->flash('sync_error', 'Akses ditolak: Anda tidak memiliki wewenang untuk mengubah antrean ini.');
+            return;
+        }
+
+        $antrean->status = 'Menunggu';
+        $antrean->waktu_mulai_aktual = null;
+        $antrean->save();
+
+        session()->flash('sync_success', 'Antrean #' . $antrean->nomor_antrean . ' berhasil dikembalikan ke antrean Menunggu.');
     }
 
     public function moveToKasir($id) {
@@ -224,15 +253,7 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
     public function with() {
         $user = auth()->user();
         $isKapster = $user && ($user->role === 'Kapster' || (method_exists($user, 'hasRole') && $user->hasRole('Kapster')));
-        $isOwner = $user && (
-            $user->role === 'Pemilik' || 
-            $user->role === 'Admin' || 
-            (method_exists($user, 'hasRole') && ($user->hasRole('Pemilik') || $user->hasRole('Admin'))) ||
-            str_contains(strtolower($user->role ?? ''), 'pemilik') ||
-            str_contains(strtolower($user->role ?? ''), 'admin') ||
-            $user->id === 1 || 
-            $user->id === 2
-        );
+        $isOwner = $this->isOwner();
 
         $kapsters = User::whereHas('roles', function($q){$q->where('name', 'Kapster');})->get();
         if ($kapsters->isEmpty()) {
@@ -273,10 +294,11 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
         } elseif ($this->filterTanggal === 'tomorrow') {
             $query->whereDate('tanggal', $tomorrow);
         } elseif ($this->filterTanggal === 'all') {
-            // Tampilkan semua antrean aktif (Menunggu & Diproses) atau tanggal hari ini ke depan
+            // Tampilkan semua antrean aktif (Menunggu & Diproses), atau tanggal hari ini, atau yang baru diperbarui hari ini
             $query->where(function($q) use ($today) {
                 $q->whereIn('status', ['Menunggu', 'Diproses'])
-                  ->orWhereDate('tanggal', $today);
+                  ->orWhereDate('tanggal', $today)
+                  ->orWhereDate('updated_at', $today);
             });
         } elseif ($this->filterTanggal === 'history') {
             // Semua tanpa filter tanggal
@@ -519,7 +541,7 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
                         $isToday = $a->tanggal === $today;
                         $isTomorrow = $a->tanggal === $tomorrow;
                     @endphp
-                    <div class="bg-surface-container rounded-xl p-4 shadow-sm hover:shadow-md transition-all border border-outline-variant/30 relative">
+                    <div wire:key="antrean-menunggu-{{ $a->id }}" class="bg-surface-container rounded-xl p-4 shadow-sm hover:shadow-md transition-all border border-outline-variant/30 relative">
                         <div class="flex justify-between items-start mb-2.5">
                             <div>
                                 <h3 class="font-bold text-sm text-on-surface leading-tight">{{ optional($a->pelanggan)->nama ?? 'Pelanggan Umum' }}</h3>
@@ -552,18 +574,52 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
                             </span>
                         </div>
 
-                        @if($isOwner || $this->canManageAntrean($a))
-                            <div class="grid {{ $isOwner ? 'grid-cols-2' : 'grid-cols-1' }} gap-2">
-                                <button wire:click="startProcess({{ $a->id }})" class="w-full bg-primary hover:bg-primary-fixed text-on-primary font-bold text-xs rounded-lg py-2.5 transition-all flex items-center justify-center gap-1.5 shadow-sm shadow-primary/20 cursor-pointer">
-                                    <span class="material-symbols-outlined text-[16px]">play_arrow</span>
+                        @if($isOwner)
+                            <!-- Akses Penuh Owner: Mulai Pengerjaan, Selesai Langsung, atau Ke Kasir -->
+                            <div class="grid grid-cols-3 gap-1.5 pt-1">
+                                <button 
+                                    wire:click="startProcess({{ $a->id }})" 
+                                    wire:loading.attr="disabled"
+                                    wire:target="startProcess({{ $a->id }})"
+                                    type="button"
+                                    class="bg-primary hover:bg-primary-fixed text-on-primary font-bold text-xs rounded-lg py-2 transition-all flex items-center justify-center gap-1 shadow-sm shadow-primary/20 cursor-pointer disabled:opacity-50">
+                                    <span wire:loading.remove wire:target="startProcess({{ $a->id }})" class="material-symbols-outlined text-[15px]">play_arrow</span>
+                                    <span wire:loading wire:target="startProcess({{ $a->id }})" class="material-symbols-outlined text-[15px] animate-spin">refresh</span>
+                                    <span>Mulai</span>
+                                </button>
+                                <button 
+                                    wire:click="finishProcess({{ $a->id }})" 
+                                    wire:loading.attr="disabled"
+                                    wire:target="finishProcess({{ $a->id }})"
+                                    type="button"
+                                    class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg py-2 transition-all flex items-center justify-center gap-1 shadow-sm cursor-pointer disabled:opacity-50">
+                                    <span wire:loading.remove wire:target="finishProcess({{ $a->id }})" class="material-symbols-outlined text-[15px]">check</span>
+                                    <span wire:loading wire:target="finishProcess({{ $a->id }})" class="material-symbols-outlined text-[15px] animate-spin">refresh</span>
+                                    <span>Selesai</span>
+                                </button>
+                                <button 
+                                    wire:click="moveToKasir({{ $a->id }})" 
+                                    wire:loading.attr="disabled"
+                                    wire:target="moveToKasir({{ $a->id }})"
+                                    type="button"
+                                    class="bg-surface-container-highest hover:bg-surface-bright text-on-surface hover:text-primary font-bold text-xs rounded-lg py-2 transition-all flex items-center justify-center gap-1 border border-outline-variant/40 cursor-pointer shadow-sm disabled:opacity-50">
+                                    <span wire:loading.remove wire:target="moveToKasir({{ $a->id }})" class="material-symbols-outlined text-[15px]">point_of_sale</span>
+                                    <span wire:loading wire:target="moveToKasir({{ $a->id }})" class="material-symbols-outlined text-[15px] animate-spin">refresh</span>
+                                    <span>Kasir</span>
+                                </button>
+                            </div>
+                        @elseif($this->canManageAntrean($a))
+                            <div class="grid grid-cols-1 gap-2 pt-1">
+                                <button 
+                                    wire:click="startProcess({{ $a->id }})" 
+                                    wire:loading.attr="disabled"
+                                    wire:target="startProcess({{ $a->id }})"
+                                    type="button"
+                                    class="w-full bg-primary hover:bg-primary-fixed text-on-primary font-bold text-xs rounded-lg py-2.5 transition-all flex items-center justify-center gap-1.5 shadow-sm shadow-primary/20 cursor-pointer disabled:opacity-50">
+                                    <span wire:loading.remove wire:target="startProcess({{ $a->id }})" class="material-symbols-outlined text-[16px]">play_arrow</span>
+                                    <span wire:loading wire:target="startProcess({{ $a->id }})" class="material-symbols-outlined text-[16px] animate-spin">refresh</span>
                                     <span>Mulai Pengerjaan</span>
                                 </button>
-                                @if($isOwner)
-                                    <button wire:click="moveToKasir({{ $a->id }})" class="w-full bg-surface-container-highest hover:bg-surface-bright text-on-surface hover:text-primary font-bold text-xs rounded-lg py-2.5 transition-all flex items-center justify-center gap-1.5 border border-outline-variant/40 cursor-pointer shadow-sm">
-                                        <span class="material-symbols-outlined text-[16px]">point_of_sale</span>
-                                        <span>Ke Kasir</span>
-                                    </button>
-                                @endif
                             </div>
                         @else
                             <div class="w-full bg-surface-container-high/60 border border-outline-variant/30 text-on-surface-variant/80 font-medium text-xs rounded-lg py-2.5 flex items-center justify-center gap-1.5 cursor-not-allowed select-none">
@@ -597,7 +653,7 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
                         $isToday = $a->tanggal === $today;
                         $isTomorrow = $a->tanggal === $tomorrow;
                     @endphp
-                    <div class="bg-surface-container rounded-xl p-4 shadow-xl border-l-[4px] border-emerald-500 relative group border-t border-r border-b border-outline-variant/30">
+                    <div wire:key="antrean-diproses-{{ $a->id }}" class="bg-surface-container rounded-xl p-4 shadow-xl border-l-[4px] border-emerald-500 relative group border-t border-r border-b border-outline-variant/30">
                         <div class="flex justify-between items-start mb-2.5">
                             <div>
                                 <h3 class="font-bold text-sm text-on-surface leading-tight">{{ optional($a->pelanggan)->nama ?? 'Pelanggan Umum' }}</h3>
@@ -625,15 +681,40 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
 
                         @if($isOwner || $this->canManageAntrean($a))
                             <div class="grid grid-cols-2 gap-2 mt-2">
-                                <button wire:click="finishProcess({{ $a->id }})" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg py-2 transition-all flex items-center justify-center gap-1 shadow-sm cursor-pointer">
-                                    <span class="material-symbols-outlined text-[16px]">check</span>
+                                <button 
+                                    wire:click="finishProcess({{ $a->id }})" 
+                                    wire:loading.attr="disabled"
+                                    wire:target="finishProcess({{ $a->id }})"
+                                    type="button"
+                                    class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg py-2 transition-all flex items-center justify-center gap-1 shadow-sm cursor-pointer disabled:opacity-50">
+                                    <span wire:loading.remove wire:target="finishProcess({{ $a->id }})" class="material-symbols-outlined text-[16px]">check</span>
+                                    <span wire:loading wire:target="finishProcess({{ $a->id }})" class="material-symbols-outlined text-[16px] animate-spin">refresh</span>
                                     <span>Selesai</span>
                                 </button>
-                                <button wire:click="moveToKasir({{ $a->id }})" class="bg-primary hover:bg-primary-fixed text-on-primary font-bold text-xs rounded-lg py-2 transition-all flex items-center justify-center gap-1 shadow-sm shadow-primary/20 cursor-pointer">
-                                    <span class="material-symbols-outlined text-[16px]">point_of_sale</span>
+                                <button 
+                                    wire:click="moveToKasir({{ $a->id }})" 
+                                    wire:loading.attr="disabled"
+                                    wire:target="moveToKasir({{ $a->id }})"
+                                    type="button"
+                                    class="bg-primary hover:bg-primary-fixed text-on-primary font-bold text-xs rounded-lg py-2 transition-all flex items-center justify-center gap-1 shadow-sm shadow-primary/20 cursor-pointer disabled:opacity-50">
+                                    <span wire:loading.remove wire:target="moveToKasir({{ $a->id }})" class="material-symbols-outlined text-[16px]">point_of_sale</span>
+                                    <span wire:loading wire:target="moveToKasir({{ $a->id }})" class="material-symbols-outlined text-[16px] animate-spin">refresh</span>
                                     <span>Ke Kasir</span>
                                 </button>
                             </div>
+                            @if($isOwner)
+                                <div class="mt-1.5 flex justify-end">
+                                    <button 
+                                        wire:click="resetToWaiting({{ $a->id }})"
+                                        wire:loading.attr="disabled"
+                                        wire:target="resetToWaiting({{ $a->id }})"
+                                        type="button"
+                                        class="text-[11px] text-on-surface-variant hover:text-amber-400 transition-colors flex items-center gap-1 cursor-pointer">
+                                        <span class="material-symbols-outlined text-[13px]">undo</span>
+                                        <span>Kembalikan ke antrean Menunggu</span>
+                                    </button>
+                                </div>
+                            @endif
                         @else
                             <div class="mt-2 w-full bg-surface-container-high/60 border border-outline-variant/30 text-on-surface-variant/80 font-medium text-xs rounded-lg py-2 flex items-center justify-center gap-1.5 cursor-not-allowed select-none">
                                 <span class="material-symbols-outlined text-[16px] text-emerald-400">lock</span>
@@ -667,7 +748,7 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
                     </div>
                 @endif
                 @forelse($selesai as $a)
-                    <div class="bg-surface-container/70 rounded-xl p-4 shadow-sm border border-outline-variant/20 relative group hover:border-outline-variant/50 transition-all">
+                    <div wire:key="antrean-selesai-{{ $a->id }}" class="bg-surface-container/70 rounded-xl p-4 shadow-sm border border-outline-variant/20 relative group hover:border-outline-variant/50 transition-all">
                         <div class="flex justify-between items-start mb-2">
                             <div>
                                 <h3 class="font-bold text-xs text-on-surface-variant leading-tight">{{ optional($a->pelanggan)->nama ?? 'Pelanggan Umum' }}</h3>
@@ -682,8 +763,14 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
                             <span>{{ $a->tanggal }}</span>
                         </div>
                         @if($isOwner || $this->canManageAntrean($a))
-                            <button wire:click="moveToKasir({{ $a->id }})" class="w-full bg-surface-container-high hover:bg-surface-container-highest text-on-surface text-xs font-semibold rounded-lg py-1.5 mt-2.5 transition-colors border border-outline-variant/30 flex items-center justify-center gap-1 cursor-pointer">
-                                <span class="material-symbols-outlined text-[14px]">receipt</span>
+                            <button 
+                                wire:click="moveToKasir({{ $a->id }})" 
+                                wire:loading.attr="disabled"
+                                wire:target="moveToKasir({{ $a->id }})"
+                                type="button"
+                                class="w-full bg-surface-container-high hover:bg-surface-container-highest text-on-surface text-xs font-semibold rounded-lg py-1.5 mt-2.5 transition-colors border border-outline-variant/30 flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50">
+                                <span wire:loading.remove wire:target="moveToKasir({{ $a->id }})" class="material-symbols-outlined text-[14px]">receipt</span>
+                                <span wire:loading wire:target="moveToKasir({{ $a->id }})" class="material-symbols-outlined text-[14px] animate-spin">refresh</span>
                                 <span>Ke Kasir / Detail Nota</span>
                             </button>
                         @else
