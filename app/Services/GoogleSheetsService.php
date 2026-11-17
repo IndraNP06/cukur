@@ -185,6 +185,15 @@ class GoogleSheetsService
                     }
                 }
 
+                // Normalisasi created_at dan updated_at agar selalu berformat Y-m-d H:i:s
+                foreach (['created_at', 'updated_at'] as $dateCol) {
+                    if (!empty($record[$dateCol])) {
+                        try {
+                            $record[$dateCol] = \Carbon\Carbon::parse($record[$dateCol])->format('Y-m-d H:i:s');
+                        } catch (\Throwable $e) {}
+                    }
+                }
+
                 if (!empty($record)) {
                     try {
                         DB::table($table)->insert($record);
