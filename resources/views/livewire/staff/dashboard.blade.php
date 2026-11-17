@@ -264,10 +264,12 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
                     <span>Sinkron Sheets</span>
                 </button>
                 <div class="flex items-center gap-3 bg-surface-container-high rounded-full px-5 py-2.5 shadow-md w-fit">
-                    <div class="w-3 h-3 rounded-full {{ $shiftHariIni && $shiftHariIni->status === 'Hadir' ? 'bg-primary shadow-[0_0_12px_rgba(255,193,116,0.6)] animate-pulse' : 'bg-surface-variant' }}"></div>
+                    <div class="w-3 h-3 rounded-full {{ $shiftHariIni && $shiftHariIni->status === 'Hadir' ? 'bg-primary shadow-[0_0_12px_rgba(255,193,116,0.6)] animate-pulse' : ($shiftHariIni && $shiftHariIni->status !== 'Hadir' ? 'bg-rose-500' : 'bg-surface-variant') }}"></div>
                     <span class="text-label-md font-label-md text-on-surface-variant text-sm">
-                        @if($shiftHariIni && $shiftHariIni->status === 'Hadir')
+                        @if($shiftHariIni && $shiftHariIni->status === 'Hadir' && $shiftHariIni->jam_mulai && $shiftHariIni->jam_selesai)
                             Shift {{ \Carbon\Carbon::parse($shiftHariIni->jam_mulai)->format('H:i') }} - {{ \Carbon\Carbon::parse($shiftHariIni->jam_selesai)->format('H:i') }}
+                        @elseif($shiftHariIni && $shiftHariIni->status !== 'Hadir')
+                            {{ $shiftHariIni->status }}
                         @else
                             Off Shift
                         @endif

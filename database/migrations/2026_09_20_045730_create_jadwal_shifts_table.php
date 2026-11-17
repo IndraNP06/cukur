@@ -9,8 +9,8 @@ return new class extends Migration {
             $table->id();
             $table->foreignId('kapster_id')->constrained('pengguna')->onDelete('cascade');
             $table->date('tanggal');
-            $table->time('jam_mulai');
-            $table->time('jam_selesai');
+            $table->time('jam_mulai')->nullable();
+            $table->time('jam_selesai')->nullable();
             $table->enum('status', ['Hadir', 'Cuti', 'Libur'])->default('Hadir');
             $table->timestamps();
         });

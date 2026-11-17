@@ -55,8 +55,8 @@ new #[Layout('components.layouts.admin')] #[Title('Kelola Jadwal - Ran CukurIn')
  $shift = JadwalShift::where('kapster_id', $kapsterId)->where('tanggal', $date)->first();
  if ($shift) {
  $this->status = $shift->status;
- $this->jam_mulai = Carbon::parse($shift->jam_mulai)->format('H:i');
- $this->jam_selesai = Carbon::parse($shift->jam_selesai)->format('H:i');
+        $this->jam_mulai = $shift->jam_mulai ? Carbon::parse($shift->jam_mulai)->format('H:i') : '10:00';
+        $this->jam_selesai = $shift->jam_selesai ? Carbon::parse($shift->jam_selesai)->format('H:i') : '21:00';
  } else {
  $this->status = 'Hadir';
  $this->jam_mulai = '10:00';
@@ -71,8 +71,8 @@ new #[Layout('components.layouts.admin')] #[Title('Kelola Jadwal - Ran CukurIn')
  JadwalShift::updateOrCreate(
  ['kapster_id' => $this->selectedKapster->id, 'tanggal' => $this->selectedDate],
  [
- 'jam_mulai' => $this->status === 'Hadir' ? $this->jam_mulai : null,
- 'jam_selesai' => $this->status === 'Hadir' ? $this->jam_selesai : null,
+ 'jam_mulai' => $this->status === 'Hadir' ? ($this->jam_mulai ?: '10:00') : null,
+ 'jam_selesai' => $this->status === 'Hadir' ? ($this->jam_selesai ?: '21:00') : null,
  'status' => $this->status
  ]
  );
