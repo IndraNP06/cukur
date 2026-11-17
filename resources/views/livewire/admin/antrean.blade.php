@@ -100,6 +100,7 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
         if (empty($antrean->waktu_mulai_aktual)) {
             $antrean->waktu_mulai_aktual = Carbon::now()->format('H:i:s');
         }
+        $antrean->touch();
         $antrean->save();
 
         session()->flash('sync_success', 'Antrean #' . $antrean->nomor_antrean . ' berhasil mulai diproses!');
@@ -122,6 +123,7 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
             $antrean->waktu_mulai_aktual = Carbon::now()->format('H:i:s');
         }
         $antrean->waktu_selesai_aktual = Carbon::now()->format('H:i:s');
+        $antrean->touch();
         $antrean->save();
 
         session()->flash('sync_success', 'Antrean #' . $antrean->nomor_antrean . ' berhasil diselesaikan!');
@@ -138,6 +140,7 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
 
         $antrean->status = 'Menunggu';
         $antrean->waktu_mulai_aktual = null;
+        $antrean->touch();
         $antrean->save();
 
         session()->flash('sync_success', 'Antrean #' . $antrean->nomor_antrean . ' berhasil dikembalikan ke antrean Menunggu.');
@@ -314,8 +317,8 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
         $semuaAntrean = $query->orderBy('tanggal', 'asc')->orderBy('waktu_estimasi_mulai', 'asc')->get();
         $selesaiAll = $semuaAntrean->where('status', 'Selesai');
         $totalSelesaiCount = $selesaiAll->count();
-        // Batasi 30 antrean selesai paling terbaru untuk rendering DOM cepat dan mulus
-        $selesai = $selesaiAll->sortByDesc('id')->take(30);
+        // Urutkan antrean selesai berdasarkan yang paling baru diselesaikan (updated_at desc), batasi 30 untuk rendering cepat
+        $selesai = $selesaiAll->sortByDesc('updated_at')->take(30);
 
         $menungguAll = $semuaAntrean->where('status', 'Menunggu');
         $totalMenungguCount = $menungguAll->count();
