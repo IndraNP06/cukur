@@ -30,12 +30,6 @@ new #[Layout('components.layouts.blank')] #[Title('Tiket Antrean - Ran CukurIn')
             ->orderBy('waktu_mulai_aktual', 'desc')
             ->first();
 
-        if (!$this->antreanSaatIni) {
-            $this->antreanSaatIni = AntreanPemesanan::where('status', 'Diproses')
-                ->orderBy('id', 'desc')
-                ->first();
-        }
-
         $this->menungguCount = $this->pemesanan->sisa_antrean_di_depan;
         $this->ewt = $this->pemesanan->estimasi_tunggu_menit;
     }

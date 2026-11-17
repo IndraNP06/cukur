@@ -27,7 +27,7 @@ class AntreanPemesanan extends Model
     }
 
     /**
-     * Hitung sisa antrean yang berada di depan antrean ini.
+     * Hitung sisa antrean yang berada di depan antrean ini pada hari yang sama.
      */
     public function getSisaAntreanDiDepanAttribute(): int
     {
@@ -39,13 +39,8 @@ class AntreanPemesanan extends Model
             ->when($this->kapster_id, function($q) {
                 $q->where('kapster_id', $this->kapster_id);
             })
-            ->where(function($q) {
-                $q->where('tanggal', '<', $this->tanggal)
-                  ->orWhere(function($q2) {
-                      $q2->where('tanggal', $this->tanggal)
-                         ->where('created_at', '<', $this->created_at);
-                  });
-            })
+            ->whereDate('tanggal', $this->tanggal)
+            ->where('created_at', '<', $this->created_at)
             ->count();
     }
 
@@ -74,21 +69,20 @@ class AntreanPemesanan extends Model
     }
 
     /**
-     * Hitung estimasi waktu tunggu umum toko (dalam menit).
+     * Hitung estimasi waktu tunggu umum toko (dalam menit) khusus hari yang ditentukan (default hari ini).
      */
-    public static function hitungEwtToko(): int
+    public static function hitungEwtToko(?string $tanggal = null): int
     {
-        $today = \Carbon\Carbon::today()->toDateString();
+        $today = $tanggal ?? \Carbon\Carbon::today()->toDateString();
         $menungguCount = self::where('status', 'Menunggu')
             ->whereDate('tanggal', $today)
             ->count();
 
         if ($menungguCount === 0) {
-            $menungguCount = self::where('status', 'Menunggu')->count();
-        }
-
-        if ($menungguCount === 0) {
-            return 0;
+            $isProcessing = self::where('status', 'Diproses')
+                ->whereDate('tanggal', $today)
+                ->exists();
+            return $isProcessing ? 15 : 0;
         }
 
         $kapsterCount = max(1, User::whereHas('roles', fn($q) => $q->where('name', 'Kapster'))->count());
@@ -98,24 +92,19 @@ class AntreanPemesanan extends Model
     }
 
     /**
-     * Hitung estimasi waktu tunggu untuk kapster spesifik (dalam menit).
+     * Hitung estimasi waktu tunggu untuk kapster spesifik (dalam menit) khusus hari yang ditentukan (default hari ini).
      */
-    public static function hitungEwtKapster($kapsterId): int
+    public static function hitungEwtKapster($kapsterId, ?string $tanggal = null): int
     {
-        $today = \Carbon\Carbon::today()->toDateString();
+        $today = $tanggal ?? \Carbon\Carbon::today()->toDateString();
         $menungguCount = self::where('status', 'Menunggu')
             ->where('kapster_id', $kapsterId)
             ->whereDate('tanggal', $today)
             ->count();
 
-        if ($menungguCount === 0) {
-            $menungguCount = self::where('status', 'Menunggu')
-                ->where('kapster_id', $kapsterId)
-                ->count();
-        }
-
         $isProcessing = self::where('status', 'Diproses')
             ->where('kapster_id', $kapsterId)
+            ->whereDate('tanggal', $today)
             ->exists();
 
         if ($menungguCount === 0) {

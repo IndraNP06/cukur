@@ -13,8 +13,11 @@ new #[Layout('components.layouts.blank')] #[Title('Ran CukurIn - Precision in Ev
     public function with() {
         $today = \Carbon\Carbon::today()->toDateString();
         $kapsters = User::whereHas('roles', function($q){ $q->where('name', 'Kapster'); })->get();
+        if ($kapsters->isEmpty()) {
+            $kapsters = User::where('role', 'Kapster')->get();
+        }
 
-        // Status per Kapster untuk ringkasan
+        // Status per Kapster untuk ringkasan HARI INI SAJA (tanpa fallback ke hari lain)
         $kapsterStatuses = [];
         foreach ($kapsters as $kap) {
             $curr = AntreanPemesanan::where('kapster_id', $kap->id)
@@ -23,29 +26,17 @@ new #[Layout('components.layouts.blank')] #[Title('Ran CukurIn - Precision in Ev
                 ->with('layanan')
                 ->orderBy('waktu_mulai_aktual', 'desc')
                 ->first();
-            if (!$curr) {
-                $curr = AntreanPemesanan::where('kapster_id', $kap->id)
-                    ->where('status', 'Diproses')
-                    ->with('layanan')
-                    ->orderBy('id', 'desc')
-                    ->first();
-            }
 
             $waitCount = AntreanPemesanan::where('kapster_id', $kap->id)
                 ->where('status', 'Menunggu')
                 ->whereDate('tanggal', $today)
                 ->count();
-            if ($waitCount === 0) {
-                $waitCount = AntreanPemesanan::where('kapster_id', $kap->id)
-                    ->where('status', 'Menunggu')
-                    ->count();
-            }
 
             $kapsterStatuses[$kap->id] = [
                 'kapster' => $kap,
                 'current' => $curr,
                 'waiting_count' => $waitCount,
-                'ewt' => AntreanPemesanan::hitungEwtKapster($kap->id),
+                'ewt' => AntreanPemesanan::hitungEwtKapster($kap->id, $today),
             ];
         }
 
@@ -64,67 +55,42 @@ new #[Layout('components.layouts.blank')] #[Title('Ran CukurIn - Precision in Ev
                 ->orderBy('waktu_mulai_aktual', 'desc')
                 ->first();
 
-            if (!$antreanSaatIni) {
-                $antreanSaatIni = AntreanPemesanan::where('kapster_id', $selectedId)
-                    ->where('status', 'Diproses')
-                    ->with(['layanan', 'kapster'])
-                    ->orderBy('id', 'desc')
-                    ->first();
-            }
-
-            $menungguQuery = AntreanPemesanan::where('kapster_id', $selectedId)
+            $menungguList = AntreanPemesanan::where('kapster_id', $selectedId)
                 ->where('status', 'Menunggu')
                 ->whereDate('tanggal', $today)
                 ->with('layanan')
-                ->orderBy('waktu_estimasi_mulai', 'asc');
-            
-            $menungguList = $menungguQuery->take(4)->get();
-            $menungguCount = AntreanPemesanan::where('kapster_id', $selectedId)->where('status', 'Menunggu')->whereDate('tanggal', $today)->count();
-            if ($menungguList->isEmpty()) {
-                $menungguCount = AntreanPemesanan::where('kapster_id', $selectedId)->where('status', 'Menunggu')->count();
-                $menungguList = AntreanPemesanan::where('kapster_id', $selectedId)
-                    ->where('status', 'Menunggu')
-                    ->with('layanan')
-                    ->orderBy('waktu_estimasi_mulai', 'asc')
-                    ->take(4)
-                    ->get();
-            }
+                ->orderBy('waktu_estimasi_mulai', 'asc')
+                ->take(4)
+                ->get();
+
+            $menungguCount = AntreanPemesanan::where('kapster_id', $selectedId)
+                ->where('status', 'Menunggu')
+                ->whereDate('tanggal', $today)
+                ->count();
 
             $daftarMenunggu = $menungguList;
-            $ewt = AntreanPemesanan::hitungEwtKapster($selectedId);
+            $ewt = AntreanPemesanan::hitungEwtKapster($selectedId, $today);
         } else {
-            // Live Antrean Data Global
+            // Live Antrean Data Global HARI INI SAJA (tanpa fallback ke hari lain)
             $antreanSaatIni = AntreanPemesanan::where('status', 'Diproses')
                 ->whereDate('tanggal', $today)
                 ->with(['layanan', 'kapster'])
                 ->orderBy('waktu_mulai_aktual', 'desc')
                 ->first();
 
-            if (!$antreanSaatIni) {
-                $antreanSaatIni = AntreanPemesanan::where('status', 'Diproses')
-                    ->with(['layanan', 'kapster'])
-                    ->orderBy('id', 'desc')
-                    ->first();
-            }
-
-            $menungguQuery = AntreanPemesanan::where('status', 'Menunggu')
+            $menungguList = AntreanPemesanan::where('status', 'Menunggu')
                 ->whereDate('tanggal', $today)
                 ->with(['layanan', 'kapster'])
-                ->orderBy('waktu_estimasi_mulai', 'asc');
+                ->orderBy('waktu_estimasi_mulai', 'asc')
+                ->take(4)
+                ->get();
 
-            $menungguList = $menungguQuery->take(4)->get();
-            $menungguCount = AntreanPemesanan::where('status', 'Menunggu')->whereDate('tanggal', $today)->count();
-            if ($menungguList->isEmpty()) {
-                $menungguCount = AntreanPemesanan::where('status', 'Menunggu')->count();
-                $menungguList = AntreanPemesanan::where('status', 'Menunggu')
-                    ->with(['layanan', 'kapster'])
-                    ->orderBy('waktu_estimasi_mulai', 'asc')
-                    ->take(4)
-                    ->get();
-            }
+            $menungguCount = AntreanPemesanan::where('status', 'Menunggu')
+                ->whereDate('tanggal', $today)
+                ->count();
 
             $daftarMenunggu = $menungguList;
-            $ewt = AntreanPemesanan::hitungEwtToko();
+            $ewt = AntreanPemesanan::hitungEwtToko($today);
         }
 
         $myActiveBooking = null;
@@ -132,6 +98,7 @@ new #[Layout('components.layouts.blank')] #[Title('Ran CukurIn - Precision in Ev
         if (auth()->check()) {
             $myActiveBooking = AntreanPemesanan::where('pelanggan_id', auth()->id())
                 ->whereIn('status', ['Menunggu', 'Diproses'])
+                ->whereDate('tanggal', $today)
                 ->with(['layanan', 'kapster'])
                 ->orderBy('created_at', 'desc')
                 ->first();
@@ -434,12 +401,16 @@ new #[Layout('components.layouts.blank')] #[Title('Ran CukurIn - Precision in Ev
                 <!-- Tampilan Semua Kapster (Global Overview) -->
                 <div class="bg-surface-container/80 rounded-xl p-4 border border-outline flex flex-col items-center justify-center text-center">
                     <span class="font-label-sm text-on-surface-variant uppercase tracking-wider mb-1 text-xs">Sedang Diproses Toko</span>
-                    <span class="font-headline-xl text-3xl text-primary font-bold leading-none text-headline-xl">
-                        {{ $antreanSaatIni ? $antreanSaatIni->nomor_antrean : 'Belum Ada' }}
+                    <span class="font-headline-xl text-3xl font-bold leading-none text-headline-xl {{ $antreanSaatIni ? 'text-primary' : 'text-emerald-400' }}">
+                        {{ $antreanSaatIni ? $antreanSaatIni->nomor_antrean : 'Standby' }}
                     </span>
                     @if($antreanSaatIni && $antreanSaatIni->kapster)
                     <span class="text-xs text-on-surface-variant mt-2">
                         Bersama: <strong class="text-on-surface">{{ $antreanSaatIni->kapster->nama }}</strong>
+                    </span>
+                    @else
+                    <span class="text-xs text-on-surface-variant mt-2">
+                        Semua kursi standby / siap melayani pelanggan hari ini.
                     </span>
                     @endif
                 </div>
@@ -455,7 +426,13 @@ new #[Layout('components.layouts.blank')] #[Title('Ran CukurIn - Precision in Ev
                         </div>
                         <div class="flex justify-between items-baseline mt-0.5">
                             <p class="font-label-md text-on-surface-variant text-sm">Estimasi Tunggu:</p>
-                            <p class="font-body-md text-sm font-bold text-primary">~{{ $ewt }} Menit</p>
+                            <p class="font-body-md text-sm font-bold text-primary">
+                                @if($menungguCount === 0 && !$antreanSaatIni)
+                                    <span class="text-emerald-400">0 Menit (Langsung Masuk)</span>
+                                @else
+                                    ~{{ $ewt }} Menit
+                                @endif
+                            </p>
                         </div>
                     </div>
                 </div>

@@ -17,28 +17,18 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Pelanggan - Ran Cuk
             ->orderBy('created_at', 'desc')
             ->first();
 
-        // Antrean toko yang sedang diproses saat ini (sama persis dengan Homepage)
+        // Antrean toko yang sedang diproses saat ini (HARI INI SAJA)
         $antreanSaatIni = AntreanPemesanan::where('status', 'Diproses')
             ->whereDate('tanggal', $today)
             ->with(['layanan', 'kapster'])
             ->orderBy('waktu_mulai_aktual', 'desc')
             ->first();
-        
-        if (!$antreanSaatIni) {
-            $antreanSaatIni = AntreanPemesanan::where('status', 'Diproses')
-                ->with(['layanan', 'kapster'])
-                ->orderBy('id', 'desc')
-                ->first();
-        }
 
         $menungguCount = AntreanPemesanan::where('status', 'Menunggu')
             ->whereDate('tanggal', $today)
             ->count();
-        if ($menungguCount === 0) {
-            $menungguCount = AntreanPemesanan::where('status', 'Menunggu')->count();
-        }
 
-        $ewt = AntreanPemesanan::hitungEwtToko();
+        $ewt = AntreanPemesanan::hitungEwtToko($today);
 
         $sisaDiDepan = 0;
         $userEwt = $ewt;
