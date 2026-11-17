@@ -172,6 +172,12 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
             </div>
         </header>
 
+        @if (session()->has('message') || session()->has('success'))
+            <div class="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-sm flex items-center gap-2">
+                <span class="material-symbols-outlined text-base">check_circle</span>
+                <span>{{ session('message') ?? session('success') }}</span>
+            </div>
+        @endif
         @if (session()->has('sync_success'))
             <div class="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-sm flex items-center gap-2">
                 <span class="material-symbols-outlined text-base">check_circle</span>

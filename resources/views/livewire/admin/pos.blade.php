@@ -43,6 +43,16 @@ new #[Layout('components.layouts.admin')] #[Title('Sistem POS - Ran Cukurin')] c
  'price' => $this->antrean->layanan->harga,
  'qty' => 1
  ];
+
+ $this->uangDiterima = number_format($this->total, 0, ',', '.');
+ }
+
+ public function setUangPas() {
+ $this->uangDiterima = number_format($this->total, 0, ',', '.');
+ }
+
+ public function setUangCepat($nominal) {
+ $this->uangDiterima = number_format($nominal, 0, ',', '.');
  }
 
  public function updatedSearchQuery() {
@@ -176,19 +186,28 @@ new #[Layout('components.layouts.admin')] #[Title('Sistem POS - Ran Cukurin')] c
  public function processPayment() {
  // Validation
  if ($this->paymentMethod === 'Cash') {
- $uang = (float) str_replace(['Rp', '.', ' '], '', $this->uangDiterima);
- if ($uang < $this->total) {
- session()->flash('error', 'Uang diterima kurang dari total bayar.');
- return;
- }
+     $rawInput = trim((string) $this->uangDiterima);
+     if ($rawInput === '' || $rawInput === '0') {
+         $uang = $this->total;
+         $this->uangDiterima = number_format($this->total, 0, ',', '.');
+     } else {
+         $uang = (float) str_replace(['Rp', '.', ' ', ','], '', $rawInput);
+         if ($uang < $this->total) {
+             session()->flash('error', 'Uang diterima (Rp ' . number_format($uang, 0, ',', '.') . ') kurang dari total bayar (Rp ' . number_format($this->total, 0, ',', '.') . '). Silakan gunakan tombol Uang Pas atau input jumlah yang sesuai.');
+             return;
+         }
+     }
+ } else {
+     $this->uangDiterima = number_format($this->total, 0, ',', '.');
  }
 
  DB::beginTransaction();
  try {
- // Create Transaksi
- $transaksi = Transaksi::create([
- 'antrean_id' => $this->antrean->id,
- 'kasir_id' => auth()->id(),
+ // Create or update Transaksi
+ $transaksi = Transaksi::updateOrCreate(
+ ['antrean_id' => $this->antrean->id],
+ [
+ 'kasir_id' => auth()->id() ?? 1,
  'voucher_id' => $this->appliedVoucher ? $this->appliedVoucher->id : null,
  'subtotal' => $this->subtotal,
  'total_diskon' => $this->diskon,
@@ -196,9 +215,11 @@ new #[Layout('components.layouts.admin')] #[Title('Sistem POS - Ran Cukurin')] c
  'metode_pembayaran' => $this->paymentMethod,
  'status_bayar' => 'Lunas',
  'tanggal_bayar' => now()
- ]);
+ ]
+ );
 
  // Create Detail & Update Stok
+ DetailTransaksi::where('transaksi_id', $transaksi->id)->delete();
  foreach ($this->cart as $item) {
  DetailTransaksi::create([
  'transaksi_id' => $transaksi->id,
@@ -213,12 +234,13 @@ new #[Layout('components.layouts.admin')] #[Title('Sistem POS - Ran Cukurin')] c
  // Update Stock if retail
  if ($item['type'] === 'Barang') {
  $barang = Barang::find($item['id']);
- $stokAkhir = $barang->stok_sekarang - $item['qty'];
+ if ($barang) {
+ $stokAkhir = max(0, $barang->stok_sekarang - $item['qty']);
  $barang->update(['stok_sekarang' => $stokAkhir]);
 
  LogStok::create([
  'barang_id' => $barang->id,
- 'pencatat_id' => auth()->id(),
+ 'pencatat_id' => auth()->id() ?? 1,
  'referensi_transaksi_id' => $transaksi->id,
  'tipe_log' => 'OtomatisPOS',
  'qty_perubahan' => -$item['qty'],
@@ -227,13 +249,29 @@ new #[Layout('components.layouts.admin')] #[Title('Sistem POS - Ran Cukurin')] c
  ]);
  }
  }
+ }
 
- // Update Antrean Status if not yet updated (or maybe they go from Diproses -> Kasir)
- $this->antrean->update(['status' => 'Selesai']);
+ // Update Antrean Status & Selesai Aktual
+ $this->antrean->update([
+ 'status' => 'Selesai',
+ 'waktu_selesai_aktual' => now()->format('H:i:s')
+ ]);
 
  DB::commit();
+
+ // Sinkronisasi otomatis ke Google Spreadsheet
+ try {
+ $sheets = app(\App\Services\GoogleSheetsService::class);
+ $sheets->syncTable('transaksi');
+ $sheets->syncTable('antrean_pemesanan');
+ $sheets->syncTable('barang');
+ } catch (\Throwable $e) {}
  
- session()->flash('success', 'Transaksi berhasil diselesaikan.');
+ session()->flash('message', 'Pembayaran transaksi #RNC-' . str_pad($this->antrean->id, 5, '0', STR_PAD_LEFT) . ' berhasil diverifikasi dan diselesaikan!');
+
+ if (auth()->user()?->role === 'Kapster') {
+ return redirect()->route('staff.dashboard');
+ }
  return redirect()->route('admin.antrean');
 
  } catch (\Exception $e) {
@@ -246,9 +284,9 @@ new #[Layout('components.layouts.admin')] #[Title('Sistem POS - Ran Cukurin')] c
 
 <div class="flex flex-col w-full h-full relative">
  <div class="pb-6 pt-2 flex items-center justify-between z-10 sticky top-0 bg-surface-dim/80 backdrop-blur-md">
- <a href="{{ route('admin.antrean') }}" class="flex items-center text-on-surface-variant hover:text-primary transition-colors group">
+ <a href="{{ auth()->user()?->role === 'Kapster' ? route('staff.dashboard') : route('admin.antrean') }}" class="flex items-center text-on-surface-variant hover:text-primary transition-colors group">
  <span class="material-symbols-outlined mr-2 group-hover:-translate-x-1 transition-transform">arrow_back</span>
- <span class="font-label-md text-label-md">Kembali ke Antrean</span>
+ <span class="font-label-md text-label-md">Kembali ke {{ auth()->user()?->role === 'Kapster' ? 'Dashboard Kapster' : 'Antrean' }}</span>
  </a>
  <div class="flex items-center gap-4">
  <div class="px-4 py-2 bg-surface-container rounded-full shadow-sm flex items-center">
@@ -440,15 +478,36 @@ new #[Layout('components.layouts.admin')] #[Title('Sistem POS - Ran Cukurin')] c
  </div>
 
  @if($paymentMethod === 'Cash')
- <div class="bg-surface-dim p-4 rounded-xl shadow-inner mb-6 relative group">
+ <div class="bg-surface-dim p-4 rounded-xl shadow-inner mb-3 relative group">
  <div class="absolute left-0 top-0 bottom-0 w-1 bg-surface-variant group-focus-within:bg-primary transition-colors"></div>
- <label class="block font-label-sm text-label-sm text-on-surface-variant mb-2">Uang Diterima</label>
+ <div class="flex items-center justify-between mb-2">
+ <label class="block font-label-sm text-label-sm text-on-surface-variant">Uang Diterima</label>
+ <button type="button" wire:click="setUangPas" class="text-xs text-primary hover:underline font-semibold flex items-center gap-1 cursor-pointer">
+ <span class="material-symbols-outlined text-xs">done_all</span> Uang Pas
+ </button>
+ </div>
  <div class="flex items-center">
  <span class="text-on-surface-variant font-headline-md mr-2 text-headline-md">Rp</span>
- <input wire:model.live="uangDiterima" class="w-full bg-transparent text-on-surface font-headline-md focus:outline-none text-headline-md" type="text" placeholder="0">
+ <input wire:model.live="uangDiterima" class="w-full bg-transparent text-on-surface font-headline-md focus:outline-none text-headline-md" type="text" placeholder="{{ number_format($this->total,0,',','.') }}">
  </div>
  </div>
- <div class="flex justify-between items-center mb-8 px-2">
+
+ <div class="grid grid-cols-4 gap-2 mb-4">
+ <button type="button" wire:click="setUangPas" class="py-1.5 px-2 bg-surface-container hover:bg-primary hover:text-on-primary text-xs font-semibold rounded-lg border border-outline-variant/30 transition-colors text-center cursor-pointer">
+ Uang Pas
+ </button>
+ <button type="button" wire:click="setUangCepat(50000)" class="py-1.5 px-2 bg-surface-container hover:bg-primary hover:text-on-primary text-xs font-semibold rounded-lg border border-outline-variant/30 transition-colors text-center cursor-pointer">
+ 50.000
+ </button>
+ <button type="button" wire:click="setUangCepat(100000)" class="py-1.5 px-2 bg-surface-container hover:bg-primary hover:text-on-primary text-xs font-semibold rounded-lg border border-outline-variant/30 transition-colors text-center cursor-pointer">
+ 100.000
+ </button>
+ <button type="button" wire:click="setUangCepat(200000)" class="py-1.5 px-2 bg-surface-container hover:bg-primary hover:text-on-primary text-xs font-semibold rounded-lg border border-outline-variant/30 transition-colors text-center cursor-pointer">
+ 200.000
+ </button>
+ </div>
+
+ <div class="flex justify-between items-center mb-6 px-2">
  <span class="font-label-md text-label-md text-on-surface-variant">Kembalian</span>
  <span class="font-headline-md text-emerald-400 text-headline-md">Rp {{ number_format($this->kembalian,0,',','.') }}</span>
  </div>
