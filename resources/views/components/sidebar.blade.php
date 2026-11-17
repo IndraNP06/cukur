@@ -80,6 +80,11 @@
  <span class="material-symbols-outlined text-[20px]">settings</span>
  <span class="font-label-md text-label-md">Pengaturan Sistem</span>
  </a>
+ 
+ <a href="{{ route('faq') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl {{ request()->routeIs('faq') ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface' }} transition-all">
+ <span class="material-symbols-outlined text-[20px]">help_center</span>
+ <span class="font-label-md text-label-md">Pusat Bantuan &amp; FAQ</span>
+ </a>
 
  @elseif($role === 'Kapster')
  <!-- Menu Khusus Kapster -->
@@ -103,6 +108,11 @@
  <span class="font-label-md text-label-md">Absensi Kehadiran</span>
  </a>
  
+ <a href="{{ route('faq') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl {{ request()->routeIs('faq') ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface' }} transition-all">
+ <span class="material-symbols-outlined text-[20px]">help_center</span>
+ <span class="font-label-md text-label-md">Pusat Bantuan &amp; FAQ</span>
+ </a>
+ 
  @elseif($role === 'Pelanggan')
  <!-- Menu Khusus Pelanggan -->
  <a href="{{ route('customer.dashboard') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl {{ request()->routeIs('customer.dashboard') ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface' }} transition-all">
@@ -118,6 +128,11 @@
  <a href="{{ route('customer.profil') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl {{ request()->routeIs('customer.profil') ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface' }} transition-all">
  <span class="material-symbols-outlined text-[20px]">person</span>
  <span class="font-label-md text-label-md">Profil Saya</span>
+ </a>
+ 
+ <a href="{{ route('faq') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl {{ request()->routeIs('faq') ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface' }} transition-all">
+ <span class="material-symbols-outlined text-[20px]">help_center</span>
+ <span class="font-label-md text-label-md">Pusat Bantuan &amp; FAQ</span>
  </a>
  
  <div class="mt-4 border-t border-outline-variant/20 pt-4">

@@ -58,9 +58,30 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
         }
     }
 
+    public function canManageAntrean($antrean): bool {
+        if (!auth()->check()) return false;
+        $user = auth()->user();
+        $isOwner = $user->role === 'Pemilik' || $user->role === 'Admin' || (method_exists($user, 'hasRole') && ($user->hasRole('Pemilik') || $user->hasRole('Admin')));
+        if ($isOwner) {
+            return true;
+        }
+        $kapsterId = is_object($antrean) ? $antrean->kapster_id : ($antrean['kapster_id'] ?? null);
+        if (!$kapsterId) {
+            return true;
+        }
+        return (int)$kapsterId === (int)$user->id;
+    }
+
     public function startProcess($id) {
         $antrean = AntreanPemesanan::find($id);
-        if ($antrean && $antrean->status === 'Menunggu') {
+        if (!$antrean) return;
+
+        if (!$this->canManageAntrean($antrean)) {
+            session()->flash('sync_error', 'Akses ditolak: Anda tidak memiliki wewenang untuk memproses antrean kapster lain.');
+            return;
+        }
+
+        if ($antrean->status === 'Menunggu') {
             $antrean->status = 'Diproses';
             $antrean->waktu_mulai_aktual = Carbon::now()->format('H:i:s');
             $antrean->save();
@@ -73,7 +94,14 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
 
     public function finishProcess($id) {
         $antrean = AntreanPemesanan::find($id);
-        if ($antrean && $antrean->status === 'Diproses') {
+        if (!$antrean) return;
+
+        if (!$this->canManageAntrean($antrean)) {
+            session()->flash('sync_error', 'Akses ditolak: Anda tidak memiliki wewenang untuk menyelesaikan antrean kapster lain.');
+            return;
+        }
+
+        if ($antrean->status === 'Diproses') {
             $antrean->status = 'Selesai';
             $antrean->waktu_selesai_aktual = Carbon::now()->format('H:i:s');
             $antrean->save();
@@ -85,6 +113,14 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
     }
 
     public function moveToKasir($id) {
+        $antrean = AntreanPemesanan::find($id);
+        if (!$antrean) return redirect()->route('admin.antrean');
+
+        if (!$this->canManageAntrean($antrean)) {
+            session()->flash('sync_error', 'Akses ditolak: Anda tidak memiliki wewenang untuk memproses kasir antrean kapster lain.');
+            return;
+        }
+
         return redirect()->route('admin.pos', ['antrean_id' => $id]);
     }
 
@@ -184,12 +220,14 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
     }
 
     public function with() {
-        $isKapster = auth()->check() && auth()->user()->role === 'Kapster';
-        if ($isKapster && $this->filterKapster === 'all') {
-            $this->filterKapster = (string)auth()->id();
-        }
+        $user = auth()->user();
+        $isKapster = $user && ($user->role === 'Kapster' || (method_exists($user, 'hasRole') && $user->hasRole('Kapster')));
+        $isOwner = $user && ($user->role === 'Pemilik' || $user->role === 'Admin' || (method_exists($user, 'hasRole') && ($user->hasRole('Pemilik') || $user->hasRole('Admin'))));
 
         $kapsters = User::whereHas('roles', function($q){$q->where('name', 'Kapster');})->get();
+        if ($kapsters->isEmpty()) {
+            $kapsters = User::where('role', 'Kapster')->get();
+        }
         $today = Carbon::today()->toDateString();
         $tomorrow = Carbon::tomorrow()->toDateString();
 
@@ -254,6 +292,7 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
 
         return [
             'isKapster' => $isKapster,
+            'isOwner' => $isOwner,
             'kapsters' => $kapsters,
             'kapsterSummary' => $kapsterSummary,
             'layanans' => Layanan::where('is_active', true)->get(),
@@ -285,7 +324,7 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
                     <span>Kembali ke Dashboard Kapster</span>
                 </a>
             @endif
-            <div class="flex items-center gap-2 mb-1">
+            <div class="flex items-center gap-2 mb-1 flex-wrap">
                 <h1 class="font-headline-lg text-on-surface text-2xl lg:text-3xl font-bold">
                     @if($isKapster)
                         Papan Antrean &amp; Job Saya ({{ auth()->user()->nama }})
@@ -293,13 +332,30 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
                         Papan Kerja Antrean Terpadu
                     @endif
                 </h1>
+                @if($isOwner)
+                    <span class="text-xs bg-amber-500/10 text-amber-400 px-2.5 py-0.5 rounded-full font-medium border border-amber-500/20 flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[14px]">admin_panel_settings</span>
+                        Akses Penuh Owner
+                    </span>
+                @elseif($isKapster)
+                    <span class="text-xs bg-blue-500/10 text-blue-400 px-2.5 py-0.5 rounded-full font-medium border border-blue-500/20 flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[14px]">shield_person</span>
+                        Akses Khusus Kapster
+                    </span>
+                @endif
                 <span class="text-xs bg-emerald-500/10 text-emerald-400 px-2.5 py-0.5 rounded-full font-medium border border-emerald-500/20 flex items-center gap-1">
                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                     Live Sync
                 </span>
             </div>
             <p class="font-body-md text-sm text-on-surface-variant">
-                Manajemen antrean real-time. Setiap kapster mengerjakan pekerjaannya masing-masing.
+                @if($isOwner)
+                    Mode Pemilik/Owner: Anda memiliki wewenang penuh untuk melakukan aksi dan mengelola antrean seluruh kapster.
+                @elseif($isKapster)
+                    Mode Kapster: Anda hanya dapat melakukan aksi (Mulai, Selesai, Kasir) pada orderan yang ditugaskan kepada Anda.
+                @else
+                    Manajemen antrean real-time. Setiap kapster mengerjakan pekerjaannya masing-masing.
+                @endif
             </p>
         </div>
 
@@ -486,10 +542,17 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
                             </span>
                         </div>
 
-                        <button wire:click="startProcess({{ $a->id }})" class="w-full bg-primary hover:bg-primary-fixed text-on-primary font-bold text-xs rounded-lg py-2.5 transition-all flex items-center justify-center gap-1.5 shadow-sm shadow-primary/20">
-                            <span class="material-symbols-outlined text-[16px]">play_arrow</span>
-                            <span>Mulai Pengerjaan</span>
-                        </button>
+                        @if($this->canManageAntrean($a))
+                            <button wire:click="startProcess({{ $a->id }})" class="w-full bg-primary hover:bg-primary-fixed text-on-primary font-bold text-xs rounded-lg py-2.5 transition-all flex items-center justify-center gap-1.5 shadow-sm shadow-primary/20 cursor-pointer">
+                                <span class="material-symbols-outlined text-[16px]">play_arrow</span>
+                                <span>Mulai Pengerjaan</span>
+                            </button>
+                        @else
+                            <div class="w-full bg-surface-container-high/60 border border-outline-variant/30 text-on-surface-variant/80 font-medium text-xs rounded-lg py-2.5 flex items-center justify-center gap-1.5 cursor-not-allowed select-none">
+                                <span class="material-symbols-outlined text-[16px] text-amber-400">lock</span>
+                                <span>Khusus Kapster {{ optional($a->kapster)->nama ?? '-' }}</span>
+                            </div>
+                        @endif
                     </div>
                 @empty
                     <div class="text-center text-on-surface-variant py-10 opacity-60 text-xs">
@@ -542,16 +605,23 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
                             </div>
                         </div>
 
-                        <div class="grid grid-cols-2 gap-2 mt-2">
-                            <button wire:click="finishProcess({{ $a->id }})" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg py-2 transition-all flex items-center justify-center gap-1 shadow-sm">
-                                <span class="material-symbols-outlined text-[16px]">check</span>
-                                <span>Selesai</span>
-                            </button>
-                            <button wire:click="moveToKasir({{ $a->id }})" class="bg-primary hover:bg-primary-fixed text-on-primary font-bold text-xs rounded-lg py-2 transition-all flex items-center justify-center gap-1 shadow-sm shadow-primary/20">
-                                <span class="material-symbols-outlined text-[16px]">point_of_sale</span>
-                                <span>Ke Kasir</span>
-                            </button>
-                        </div>
+                        @if($this->canManageAntrean($a))
+                            <div class="grid grid-cols-2 gap-2 mt-2">
+                                <button wire:click="finishProcess({{ $a->id }})" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg py-2 transition-all flex items-center justify-center gap-1 shadow-sm cursor-pointer">
+                                    <span class="material-symbols-outlined text-[16px]">check</span>
+                                    <span>Selesai</span>
+                                </button>
+                                <button wire:click="moveToKasir({{ $a->id }})" class="bg-primary hover:bg-primary-fixed text-on-primary font-bold text-xs rounded-lg py-2 transition-all flex items-center justify-center gap-1 shadow-sm shadow-primary/20 cursor-pointer">
+                                    <span class="material-symbols-outlined text-[16px]">point_of_sale</span>
+                                    <span>Ke Kasir</span>
+                                </button>
+                            </div>
+                        @else
+                            <div class="mt-2 w-full bg-surface-container-high/60 border border-outline-variant/30 text-on-surface-variant/80 font-medium text-xs rounded-lg py-2 flex items-center justify-center gap-1.5 cursor-not-allowed select-none">
+                                <span class="material-symbols-outlined text-[16px] text-emerald-400">lock</span>
+                                <span>Ditangani {{ optional($a->kapster)->nama ?? '-' }}</span>
+                            </div>
+                        @endif
                     </div>
                 @empty
                     <div class="text-center text-on-surface-variant py-10 opacity-60 text-xs">
@@ -593,10 +663,17 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
                             <span>Kapster: <strong>{{ optional($a->kapster)->nama ?? '-' }}</strong></span>
                             <span>{{ $a->tanggal }}</span>
                         </div>
-                        <button wire:click="moveToKasir({{ $a->id }})" class="w-full bg-surface-container-high hover:bg-surface-container-highest text-on-surface text-xs font-semibold rounded-lg py-1.5 mt-2.5 transition-colors border border-outline-variant/30 flex items-center justify-center gap-1">
-                            <span class="material-symbols-outlined text-[14px]">receipt</span>
-                            <span>Detail / Nota Kasir</span>
-                        </button>
+                        @if($this->canManageAntrean($a))
+                            <button wire:click="moveToKasir({{ $a->id }})" class="w-full bg-surface-container-high hover:bg-surface-container-highest text-on-surface text-xs font-semibold rounded-lg py-1.5 mt-2.5 transition-colors border border-outline-variant/30 flex items-center justify-center gap-1 cursor-pointer">
+                                <span class="material-symbols-outlined text-[14px]">receipt</span>
+                                <span>Detail / Nota Kasir</span>
+                            </button>
+                        @else
+                            <div class="w-full bg-surface-container-high/40 border border-outline-variant/20 text-on-surface-variant/60 font-medium text-xs rounded-lg py-1.5 mt-2.5 flex items-center justify-center gap-1 cursor-not-allowed select-none">
+                                <span class="material-symbols-outlined text-[14px] text-on-surface-variant/50">lock</span>
+                                <span>Selesai oleh {{ optional($a->kapster)->nama ?? '-' }}</span>
+                            </div>
+                        @endif
                     </div>
                 @empty
                     <div class="text-center text-on-surface-variant py-10 opacity-60 text-xs">

@@ -56,6 +56,7 @@
             <nav class="hidden lg:flex items-center gap-8 lg:gap-10">
                 <a href="{{ route('home') }}" class="font-label-md text-label-md {{ request()->routeIs('home') ? 'text-primary font-bold border-b-2 border-primary pb-2' : 'text-on-surface-variant hover:text-primary' }} transition-colors uppercase">Beranda</a>
                 <a href="{{ route('katalog') }}" class="font-label-md text-label-md {{ request()->routeIs('katalog') ? 'text-primary font-bold border-b-2 border-primary pb-2' : 'text-on-surface-variant hover:text-primary' }} transition-colors uppercase">Katalog</a>
+                <a href="{{ route('faq') }}" class="font-label-md text-label-md {{ request()->routeIs('faq') ? 'text-primary font-bold border-b-2 border-primary pb-2' : 'text-on-surface-variant hover:text-primary' }} transition-colors uppercase">FAQ</a>
                 
                 @auth
                     @if(auth()->user()->role === 'Pelanggan')
@@ -114,6 +115,7 @@
             <div class="px-6 py-5 flex flex-col space-y-3">
                 <a href="{{ route('home') }}" class="font-label-md {{ request()->routeIs('home') ? 'text-primary font-bold' : 'text-on-surface-variant' }} uppercase py-2">Beranda</a>
                 <a href="{{ route('katalog') }}" class="font-label-md {{ request()->routeIs('katalog') ? 'text-primary font-bold' : 'text-on-surface-variant' }} uppercase py-2">Katalog</a>
+                <a href="{{ route('faq') }}" class="font-label-md {{ request()->routeIs('faq') ? 'text-primary font-bold' : 'text-on-surface-variant' }} uppercase py-2">FAQ</a>
                 
                 @auth
                     @if(auth()->user()->role === 'Pelanggan')

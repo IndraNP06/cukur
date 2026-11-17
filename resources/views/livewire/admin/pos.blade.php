@@ -35,6 +35,12 @@ new #[Layout('components.layouts.admin')] #[Title('Sistem POS - Ran Cukurin')] c
  $this->antrean_id = $antrean_id;
  $this->antrean = AntreanPemesanan::with(['pelanggan', 'kapster', 'layanan'])->findOrFail($antrean_id);
 
+ $user = auth()->user();
+ $isOwner = $user && ($user->role === 'Pemilik' || $user->role === 'Admin' || (method_exists($user, 'hasRole') && ($user->hasRole('Pemilik') || $user->hasRole('Admin'))));
+ if (!$isOwner && $this->antrean->kapster_id && (int)$this->antrean->kapster_id !== (int)auth()->id()) {
+ abort(403, 'Akses ditolak: Anda tidak memiliki wewenang untuk memproses transaksi kasir milik kapster lain.');
+ }
+
  // Add service to cart
  $this->cart[] = [
  'type' => 'Layanan',
@@ -199,6 +205,13 @@ new #[Layout('components.layouts.admin')] #[Title('Sistem POS - Ran Cukurin')] c
      }
  } else {
      $this->uangDiterima = number_format($this->total, 0, ',', '.');
+ }
+
+ $user = auth()->user();
+ $isOwner = $user && ($user->role === 'Pemilik' || $user->role === 'Admin' || (method_exists($user, 'hasRole') && ($user->hasRole('Pemilik') || $user->hasRole('Admin'))));
+ if (!$isOwner && $this->antrean->kapster_id && (int)$this->antrean->kapster_id !== (int)auth()->id()) {
+     session()->flash('error', 'Akses ditolak: Anda tidak memiliki wewenang untuk memproses transaksi kasir milik kapster lain.');
+     return;
  }
 
  DB::beginTransaction();

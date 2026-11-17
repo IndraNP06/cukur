@@ -12,6 +12,7 @@
  <h4 class="font-label-md text-label-md text-primary uppercase tracking-widest">Quick Links</h4>
  <nav class="flex flex-col gap-4">
  <a href="{{ route('katalog') }}" class="text-on-surface-variant hover:text-primary transition-colors">Layanan & Produk</a>
+ <a href="{{ route('faq') }}" class="text-on-surface-variant hover:text-primary transition-colors">Pusat Bantuan &amp; FAQ</a>
  <a href="{{ route('home') }}#tentang" class="text-on-surface-variant hover:text-primary transition-colors">Tentang Kami</a>
  <a href="{{ route('home') }}#galeri" class="text-on-surface-variant hover:text-primary transition-colors">Galeri</a>
  </nav>

@@ -8,6 +8,7 @@ Route::get('/', function () {
 });
 Volt::route('/home', 'home')->name('home');
 Volt::route('/katalog', 'katalog')->name('katalog');
+Volt::route('/faq', 'faq')->name('faq');
 
 Volt::route('/login', 'auth.login')->name('login')->middleware('guest');
 Volt::route('/register', 'auth.register')->name('register')->middleware('guest');
