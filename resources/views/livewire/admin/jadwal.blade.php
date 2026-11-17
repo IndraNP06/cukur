@@ -30,21 +30,68 @@ new #[Layout('components.layouts.admin')] #[Title('Kelola Jadwal - Ran CukurIn')
  public function loadData()
  {
  $this->kapsters = User::where('role', 'Kapster')->get();
+ $this->ensureWeekShifts();
+ }
+
+ public function ensureWeekShifts()
+ {
+ if (!$this->kapsters || $this->kapsters->isEmpty()) {
+ $this->kapsters = User::where('role', 'Kapster')->get();
+ }
+
+ for ($i = 0; $i < 7; $i++) {
+ $dateStr = $this->weekStart->copy()->addDays($i)->format('Y-m-d');
+ foreach ($this->kapsters as $kapster) {
+ JadwalShift::firstOrCreate(
+ ['kapster_id' => $kapster->id, 'tanggal' => $dateStr],
+ [
+ 'jam_mulai' => '10:00',
+ 'jam_selesai' => '21:00',
+ 'status' => 'Hadir'
+ ]
+ );
+ }
+ }
+ }
+
+ public function setAllWorkShifts()
+ {
+ if (!$this->kapsters || $this->kapsters->isEmpty()) {
+ $this->kapsters = User::where('role', 'Kapster')->get();
+ }
+
+ for ($i = 0; $i < 7; $i++) {
+ $dateStr = $this->weekStart->copy()->addDays($i)->format('Y-m-d');
+ foreach ($this->kapsters as $kapster) {
+ JadwalShift::updateOrCreate(
+ ['kapster_id' => $kapster->id, 'tanggal' => $dateStr],
+ [
+ 'jam_mulai' => '10:00',
+ 'jam_selesai' => '21:00',
+ 'status' => 'Hadir'
+ ]
+ );
+ }
+ }
+ session()->flash('message', 'Semua kapster pada minggu ini berhasil diatur ke Shift Kerja (10:00 - 21:00).');
  }
 
  public function previousWeek()
  {
  $this->weekStart->subWeek();
+ $this->ensureWeekShifts();
  }
 
  public function nextWeek()
  {
  $this->weekStart->addWeek();
+ $this->ensureWeekShifts();
  }
 
  public function currentWeek()
  {
  $this->weekStart = Carbon::now()->startOfWeek();
+ $this->ensureWeekShifts();
  }
 
  public function editShift($kapsterId, $date)
@@ -118,7 +165,11 @@ new #[Layout('components.layouts.admin')] #[Title('Kelola Jadwal - Ran CukurIn')
  <p class="font-body-md text-body-md text-on-surface-variant max-w-2xl">Atur shift harian, tetapkan hari libur, dan pastikan ketersediaan kapster untuk pelayanan maksimal.</p>
  </div>
  <div class="flex flex-wrap items-center gap-3">
- <button wire:click="$set('showHolidayModal', true)" class="flex items-center gap-2 px-4 py-2.5 bg-surface-container-high hover:bg-surface-container-highest text-on-surface transition-all rounded-xl font-label-md text-label-md shadow-sm">
+ <button wire:click="setAllWorkShifts" type="button" class="flex items-center gap-2 px-4 py-2.5 bg-primary/20 hover:bg-primary/30 text-primary border border-primary/40 transition-all rounded-xl font-label-md text-label-md shadow-sm cursor-pointer">
+ <span class="material-symbols-outlined text-[20px]">auto_fix_high</span>
+ Set Otomatis Shift Kerja (Minggu Ini)
+ </button>
+ <button wire:click="$set('showHolidayModal', true)" class="flex items-center gap-2 px-4 py-2.5 bg-surface-container-high hover:bg-surface-container-highest text-on-surface transition-all rounded-xl font-label-md text-label-md shadow-sm cursor-pointer">
  <span class="material-symbols-outlined text-[20px] text-error">event_busy</span>
  Tandai Libur Nasional
  </button>
@@ -199,9 +250,9 @@ new #[Layout('components.layouts.admin')] #[Title('Kelola Jadwal - Ran CukurIn')
  <span class="text-error text-[11px] opacity-0 group-hover/btn:opacity-100 transition-opacity absolute bottom-1">Edit</span>
  </button>
  @else
- <button wire:click="editShift({{ $kapster->id }}, '{{ $dateStr }}')" class="w-full py-3 px-2 border-2 border-dashed border-on-surface-variant/30 bg-surface hover:bg-surface-container rounded-xl flex flex-col items-center justify-center gap-1 transition-all group/btn relative">
- <span class="text-on-surface-variant font-headline-md text-[14px] uppercase tracking-widest text-headline-md">OFF</span>
- <span class="text-on-surface-variant text-[11px] opacity-0 group-hover/btn:opacity-100 transition-opacity absolute bottom-1">Set</span>
+ <button wire:click="editShift({{ $kapster->id }}, '{{ $dateStr }}')" class="w-full py-3 px-2 bg-primary-container/10 hover:bg-primary-container/30 border border-primary/20 rounded-xl flex flex-col items-center justify-center gap-1 transition-all group/btn cursor-pointer">
+ <span class="text-primary/80 font-label-md">10:00 - 21:00</span>
+ <span class="text-primary/70 text-[11px] opacity-0 group-hover/btn:opacity-100 transition-opacity">Shift Kerja</span>
  </button>
  @endif
  </td>

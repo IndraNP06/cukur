@@ -179,9 +179,14 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
         $today = Carbon::today()->toDateString();
         $tomorrow = Carbon::tomorrow()->toDateString();
 
-        $shiftHariIni = JadwalShift::where('kapster_id', $user->id)
-            ->whereDate('tanggal', $today)
-            ->first();
+        $shiftHariIni = JadwalShift::firstOrCreate(
+            ['kapster_id' => $user->id, 'tanggal' => $today],
+            [
+                'jam_mulai' => '10:00',
+                'jam_selesai' => '21:00',
+                'status' => 'Hadir'
+            ]
+        );
 
         // Base Query untuk kapster ini
         $baseKapsterQuery = AntreanPemesanan::where('kapster_id', $user->id);
