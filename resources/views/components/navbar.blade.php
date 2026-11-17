@@ -14,31 +14,8 @@
  </form>
  
  <div class="flex items-center gap-2 lg:gap-4">
- <!-- Notification Dropdown -->
- <div x-data="{ open: false }" class="relative">
- <button @click="open = !open" @click.away="open = false" class="relative flex items-center justify-center p-2 rounded-full hover:bg-surface-container-highest transition-colors">
- <span class="material-symbols-outlined text-on-surface-variant hover:text-primary transition-colors">notifications</span>
- <span class="absolute top-1 right-1 w-2.5 h-2.5 bg-error rounded-full border-2 border-surface animate-pulse"></span>
- </button>
- 
- <div x-show="open" x-transition.opacity.duration.200ms class="absolute right-0 mt-2 w-80 bg-surface border border-outline-variant/30 rounded-xl shadow-lg z-50 overflow-hidden" style="display: none;">
- <div class="p-4 border-b border-outline-variant/30 flex items-center justify-between bg-surface-container-lowest">
- <h3 class="font-label-md text-label-md">Notifikasi</h3>
- <button type="button" onclick="alert('Notifikasi ditandai dibaca')" class="text-[12px] text-primary hover:underline">Tandai semua dibaca</button>
- </div>
- <div class="max-h-12 overflow-y-auto">
- <a href="{{ route('admin.dashboard') }}" class="block p-4 border-b border-outline-variant/30 hover:bg-surface-container-lowest transition-colors opacity-100">
- <p class="font-label-sm text-on-surface">Booking baru dari <span class="font-bold">Budi</span></p>
- <span class="text-[10px] text-on-surface-variant">2 menit yang lalu</span>
- </a>
- <a href="{{ route('admin.barang') }}" class="block p-4 hover:bg-surface-container-lowest transition-colors opacity-70">
- <p class="font-label-sm text-on-surface">Stok Pomade Suavecito menipis (Sisa 2)</p>
- <span class="text-[10px] text-on-surface-variant">1 jam yang lalu</span>
- </a>
- </div>
- <a href="{{ route('admin.dashboard') }}" class="block p-3 text-center text-[12px] font-bold text-primary hover:bg-surface-container-lowest transition-colors">Lihat Semua</a>
- </div>
- </div>
+ <!-- Dynamic Role & User Segregated Notification Dropdown -->
+ <x-notification-dropdown />
  
  <!-- User Profile Dropdown -->
  <div x-data="{ open: false }" class="relative">
@@ -90,6 +67,7 @@
             
             <div class="hidden lg:flex items-center gap-4 shrink-0">
                 @auth
+                    <x-notification-dropdown />
                     @if(auth()->user()->role === 'Pemilik')
                         <a href="{{ route('admin.dashboard') }}" class="bg-primary hover:bg-primary-fixed text-on-primary px-6 py-2.5 rounded-xl font-bold font-label-md text-label-md uppercase tracking-wider hover:scale-[1.02] transition-all shadow-md shadow-primary/10">Admin Panel</a>
                     @elseif(auth()->user()->role === 'Kapster')

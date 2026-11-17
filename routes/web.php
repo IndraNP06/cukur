@@ -53,6 +53,14 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('/admin/pos/{antrean_id}', 'admin.pos')->name('admin.pos');
     Volt::route('/admin/laporan-keuangan', 'admin.laporan-pendapatan')->name('admin.laporan');
 
+    Route::post('/notifikasi/mark-all-read', function () {
+        if (auth()->check()) {
+            session()->put('notifications_read_at_' . auth()->id(), now());
+            \App\Models\Notifikasi::where('user_id', auth()->id())->update(['is_read' => true]);
+        }
+        return response()->json(['success' => true]);
+    })->name('notifikasi.mark-read');
+
     Route::post('/logout', function () {
         auth()->logout();
         request()->session()->invalidate();
