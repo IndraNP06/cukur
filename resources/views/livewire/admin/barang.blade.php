@@ -46,12 +46,6 @@ new #[Layout('components.layouts.admin')] #[Title('Kelola Barang & Inventaris - 
     }
 
     public function mount() {
-        try {
-            if (!cache()->has('sheets_sync_barang_master')) {
-                app(\App\Services\GoogleSheetsService::class)->pullTable('barang');
-                cache()->put('sheets_sync_barang_master', true, now()->addSeconds(10));
-            }
-        } catch (\Throwable $e) {}
     }
 
     public function syncFromSheets() {
@@ -234,13 +228,6 @@ new #[Layout('components.layouts.admin')] #[Title('Kelola Barang & Inventaris - 
     }
 
     public function with() {
-        try {
-            if (!cache()->has('sheets_sync_barang_master')) {
-                app(\App\Services\GoogleSheetsService::class)->pullTable('barang');
-                cache()->put('sheets_sync_barang_master', true, now()->addSeconds(10));
-            }
-        } catch (\Throwable $e) {}
-
         $query = Barang::query()
             ->when($this->search, function($q) {
                 $q->where('nama_barang', 'like', '%'.$this->search.'%');

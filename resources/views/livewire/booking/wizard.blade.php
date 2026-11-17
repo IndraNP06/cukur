@@ -27,16 +27,6 @@ new #[Layout('components.layouts.customer')] #[Title('Booking Reservasi - Ran Cu
 
  public function mount() {
  $this->selectedDate = Carbon::now()->format('Y-m-d');
-
- // Sinkronkan data layanan dan voucher dari Google Spreadsheet
- try {
- if (!cache()->has('sheets_synced_wizard_fresh')) {
- $service = app(\App\Services\GoogleSheetsService::class);
- $service->pullTable('layanan');
- $service->pullTable('voucher');
- cache()->put('sheets_synced_wizard_fresh', true, now()->addSeconds(15));
- }
- } catch (\Throwable $e) {}
  }
 
  public function syncLayananFromSheets() {

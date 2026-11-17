@@ -26,16 +26,6 @@ new #[Layout('components.layouts.admin')] #[Title('Laporan Kinerja - Ran CukurIn
         $this->month = (int) Carbon::now()->month;
         $this->year = (int) Carbon::now()->year;
 
-        // Auto-pull ulasan dan antrean dari Google Sheets saat halaman pertama kali dibuka (cache 30s)
-        try {
-            if (!cache()->has('sheets_sync_kinerja')) {
-                $sheetsService = app(\App\Services\GoogleSheetsService::class);
-                $sheetsService->pullTable('ulasan');
-                $sheetsService->pullTable('antrean_pemesanan');
-                cache()->put('sheets_sync_kinerja', true, now()->addSeconds(30));
-            }
-        } catch (\Throwable $e) {}
-
         $this->loadData();
     }
 

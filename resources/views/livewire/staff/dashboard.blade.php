@@ -10,7 +10,9 @@ use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Volt\Component;
 
-new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran CukurIn')] class extends Component {
+new #[Layout('components.layouts.admin')]
+    #[Title('Dashboard Kapster - Ran CukurIn')]
+    class extends Component {
     public $filterTanggal = 'upcoming'; // 'upcoming', 'today', 'tomorrow', 'all', 'custom'
     public $customTanggal = '';
     public $filterStatus = 'active'; // 'active', 'Menunggu', 'Diproses', 'Selesai', 'all'
@@ -23,13 +25,6 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
 
     public function mount()
     {
-        // Sinkronkan data antrean terbaru dari Google Spreadsheet saat pertama kali dibuka
-        try {
-            if (!cache()->has('sheets_sync_kapster_' . auth()->id())) {
-                app(\App\Services\GoogleSheetsService::class)->pullTable('antrean_pemesanan');
-                cache()->put('sheets_sync_kapster_' . auth()->id(), true, now()->addSeconds(10));
-            }
-        } catch (\Throwable $e) {}
     }
 
     public function syncFromSheets()
@@ -53,7 +48,8 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
 
             try {
                 app(\App\Services\GoogleSheetsService::class)->syncTable('antrean_pemesanan');
-            } catch (\Throwable $e) {}
+            } catch (\Throwable $e) {
+            }
         }
     }
 
@@ -67,7 +63,8 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
 
             try {
                 app(\App\Services\GoogleSheetsService::class)->syncTable('antrean_pemesanan');
-            } catch (\Throwable $e) {}
+            } catch (\Throwable $e) {
+            }
         }
     }
 
@@ -111,7 +108,8 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
             ]);
             try {
                 $user->assignRole('Pelanggan');
-            } catch (\Throwable $e) {}
+            } catch (\Throwable $e) {
+            }
 
             try {
                 app(\App\Services\GoogleSheetsService::class)->appendRow('pengguna', [
@@ -121,7 +119,8 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
                     'role' => 'Pelanggan',
                     'created_at' => now()->toDateTimeString(),
                 ]);
-            } catch (\Throwable $e) {}
+            } catch (\Throwable $e) {
+            }
 
             $tanggalWalkIn = now()->format('Y-m-d');
             if ($this->filterTanggal === 'tomorrow') {
@@ -154,7 +153,8 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
                     'status' => $antrean->status,
                     'created_at' => now()->toDateTimeString(),
                 ]);
-            } catch (\Throwable $e) {}
+            } catch (\Throwable $e) {
+            }
 
             $this->showWalkInModal = false;
             $this->reset(['walkInName', 'walkInLayanan', 'walkInTime']);
@@ -167,14 +167,6 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
 
     public function with()
     {
-        // Auto-pull dari Google Sheets jika cache habis (setiap 10 detik saat wire:poll)
-        try {
-            if (!cache()->has('sheets_sync_kapster_' . auth()->id())) {
-                app(\App\Services\GoogleSheetsService::class)->pullTable('antrean_pemesanan');
-                cache()->put('sheets_sync_kapster_' . auth()->id(), true, now()->addSeconds(10));
-            }
-        } catch (\Throwable $e) {}
-
         $user = auth()->user();
         $today = Carbon::today()->toDateString();
         $tomorrow = Carbon::tomorrow()->toDateString();
@@ -234,10 +226,29 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
             'tomorrow' => $tomorrow,
             'layanans' => Layanan::where('is_active', true)->get(),
             'timeSlots' => [
-                '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', 
-                '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
-                '15:00', '15:30', '16:00', '16:30', '17:00', '17:30',
-                '18:00', '18:30', '19:00', '19:30', '20:00'
+                '09:00',
+                '09:30',
+                '10:00',
+                '10:30',
+                '11:00',
+                '11:30',
+                '12:00',
+                '12:30',
+                '13:00',
+                '13:30',
+                '14:00',
+                '14:30',
+                '15:00',
+                '15:30',
+                '16:00',
+                '16:30',
+                '17:00',
+                '17:30',
+                '18:00',
+                '18:30',
+                '19:00',
+                '19:30',
+                '20:00'
             ],
         ];
     }
@@ -246,7 +257,7 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
 
 <div class="flex-grow flex flex-col relative bg-background" wire:poll.5s>
     <div class="flex flex-col w-full h-full p-4 lg:p-6 pt-6 gap-6 relative overflow-hidden bg-background">
-        
+
         <div class="absolute inset-0 pointer-events-none overflow-hidden z-0">
             <div class="absolute -top-40 -right-40 w-56 h-56 bg-primary/5 rounded-full blur-[100px]"></div>
             <div class="absolute bottom-0 left-0 w-[500px] h-[500px] bg-secondary/5 rounded-full blur-[120px]"></div>
@@ -255,24 +266,31 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
         <!-- Top Header & Shift Status -->
         <header class="flex flex-col md:flex-row md:items-end justify-between gap-4 relative z-10 text-on-surface">
             <div class="flex flex-col gap-1">
-                <span class="text-label-md font-label-md text-primary uppercase tracking-widest opacity-80">Dashboard Kapster</span>
+                <span class="text-label-md font-label-md text-primary uppercase tracking-widest opacity-80">Dashboard
+                    Kapster</span>
                 <h1 class="font-headline-xl text-on-background tracking-tight text-3xl lg:text-4xl font-bold">
                     Halo, <span class="text-primary">{{ explode(' ', auth()->user()->nama)[0] }}!</span>
                 </h1>
-                <p class="text-sm text-on-surface-variant">Berikut adalah daftar pesanan &amp; giliran potong rambut khusus untuk Anda.</p>
+                <p class="text-sm text-on-surface-variant">Berikut adalah daftar pesanan &amp; giliran potong rambut
+                    khusus untuk Anda.</p>
             </div>
             <div class="flex flex-wrap items-center gap-3">
                 <button wire:click="syncFromSheets" wire:loading.attr="disabled"
                     class="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-full bg-surface-container-high hover:bg-surface-bright text-primary border border-primary/30 transition shadow-sm cursor-pointer">
-                    <span wire:loading.remove wire:target="syncFromSheets" class="material-symbols-outlined text-sm">sync</span>
-                    <span wire:loading wire:target="syncFromSheets" class="material-symbols-outlined text-sm animate-spin">refresh</span>
+                    <span wire:loading.remove wire:target="syncFromSheets"
+                        class="material-symbols-outlined text-sm">sync</span>
+                    <span wire:loading wire:target="syncFromSheets"
+                        class="material-symbols-outlined text-sm animate-spin">refresh</span>
                     <span>Sinkron Sheets</span>
                 </button>
                 <div class="flex items-center gap-3 bg-surface-container-high rounded-full px-5 py-2.5 shadow-md w-fit">
-                    <div class="w-3 h-3 rounded-full {{ $shiftHariIni && $shiftHariIni->status === 'Hadir' ? 'bg-primary shadow-[0_0_12px_rgba(255,193,116,0.6)] animate-pulse' : ($shiftHariIni && $shiftHariIni->status !== 'Hadir' ? 'bg-rose-500' : 'bg-surface-variant') }}"></div>
+                    <div
+                        class="w-3 h-3 rounded-full {{ $shiftHariIni && $shiftHariIni->status === 'Hadir' ? 'bg-primary shadow-[0_0_12px_rgba(255,193,116,0.6)] animate-pulse' : ($shiftHariIni && $shiftHariIni->status !== 'Hadir' ? 'bg-rose-500' : 'bg-surface-variant') }}">
+                    </div>
                     <span class="text-label-md font-label-md text-on-surface-variant text-sm">
                         @if($shiftHariIni && $shiftHariIni->status === 'Hadir' && $shiftHariIni->jam_mulai && $shiftHariIni->jam_selesai)
-                            Shift {{ \Carbon\Carbon::parse($shiftHariIni->jam_mulai)->format('H:i') }} - {{ \Carbon\Carbon::parse($shiftHariIni->jam_selesai)->format('H:i') }}
+                            Shift {{ \Carbon\Carbon::parse($shiftHariIni->jam_mulai)->format('H:i') }} -
+                            {{ \Carbon\Carbon::parse($shiftHariIni->jam_selesai)->format('H:i') }}
                         @elseif($shiftHariIni && $shiftHariIni->status !== 'Hadir')
                             {{ $shiftHariIni->status }}
                         @else
@@ -285,19 +303,22 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
         </header>
 
         @if (session()->has('message') || session()->has('success'))
-            <div class="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-sm flex items-center gap-2">
+            <div
+                class="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-sm flex items-center gap-2">
                 <span class="material-symbols-outlined text-base">check_circle</span>
                 <span>{{ session('message') ?? session('success') }}</span>
             </div>
         @endif
         @if (session()->has('sync_success'))
-            <div class="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-sm flex items-center gap-2">
+            <div
+                class="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-sm flex items-center gap-2">
                 <span class="material-symbols-outlined text-base">check_circle</span>
                 <span>{{ session('sync_success') }}</span>
             </div>
         @endif
         @if (session()->has('sync_error'))
-            <div class="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-sm flex items-center gap-2">
+            <div
+                class="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-sm flex items-center gap-2">
                 <span class="material-symbols-outlined text-base">error</span>
                 <span>{{ session('sync_error') }}</span>
             </div>
@@ -306,10 +327,14 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
         <!-- Summary Widgets (3-column grid) -->
         <section class="grid grid-cols-1 md:grid-cols-4 gap-4 relative z-10 text-on-surface">
             <!-- Widget 1: Orderan Aktif / Mendatang -->
-            <div class="bg-surface-container shadow-md rounded-2xl p-5 relative overflow-hidden group border border-outline-variant/30">
+            <div
+                class="bg-surface-container shadow-md rounded-2xl p-5 relative overflow-hidden group border border-outline-variant/30">
                 <div class="flex items-center justify-between mb-2">
-                    <span class="text-label-sm font-label-sm text-on-surface-variant uppercase tracking-wide text-xs">Job Mendatang</span>
-                    <span class="material-symbols-outlined text-primary text-xl" style="font-variation-settings: 'FILL' 1;">event_upcoming</span>
+                    <span
+                        class="text-label-sm font-label-sm text-on-surface-variant uppercase tracking-wide text-xs">Job
+                        Mendatang</span>
+                    <span class="material-symbols-outlined text-primary text-xl"
+                        style="font-variation-settings: 'FILL' 1;">event_upcoming</span>
                 </div>
                 <div class="flex items-baseline gap-2">
                     <span class="text-3xl font-bold text-primary leading-none">{{ $totalMendatang }}</span>
@@ -318,9 +343,12 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
             </div>
 
             <!-- Widget 2: Sedang Diproses -->
-            <div class="bg-surface-container shadow-md rounded-2xl p-5 relative overflow-hidden group border border-outline-variant/30">
+            <div
+                class="bg-surface-container shadow-md rounded-2xl p-5 relative overflow-hidden group border border-outline-variant/30">
                 <div class="flex items-center justify-between mb-2">
-                    <span class="text-label-sm font-label-sm text-on-surface-variant uppercase tracking-wide text-xs">Sedang Dicukur</span>
+                    <span
+                        class="text-label-sm font-label-sm text-on-surface-variant uppercase tracking-wide text-xs">Sedang
+                        Dicukur</span>
                     <span class="material-symbols-outlined text-amber-400 text-xl animate-spin">sync</span>
                 </div>
                 <div class="flex items-baseline gap-2">
@@ -328,24 +356,32 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
                     <span class="text-xs text-on-surface-variant">Pelanggan Aktif</span>
                 </div>
             </div>
-            
+
             <!-- Widget 3: Pelanggan Hari Ini -->
-            <div class="bg-surface-container shadow-md rounded-2xl p-5 relative overflow-hidden group border border-outline-variant/30">
+            <div
+                class="bg-surface-container shadow-md rounded-2xl p-5 relative overflow-hidden group border border-outline-variant/30">
                 <div class="flex items-center justify-between mb-2">
-                    <span class="text-label-sm font-label-sm text-on-surface-variant uppercase tracking-wide text-xs">Total Hari Ini</span>
-                    <span class="material-symbols-outlined text-primary opacity-80 text-xl" style="font-variation-settings: 'FILL' 1;">groups</span>
+                    <span
+                        class="text-label-sm font-label-sm text-on-surface-variant uppercase tracking-wide text-xs">Total
+                        Hari Ini</span>
+                    <span class="material-symbols-outlined text-primary opacity-80 text-xl"
+                        style="font-variation-settings: 'FILL' 1;">groups</span>
                 </div>
                 <div class="flex items-baseline gap-2">
                     <span class="text-3xl font-bold text-on-surface leading-none">{{ $totalPelanggan }}</span>
                     <span class="text-xs text-on-surface-variant">Total Booking</span>
                 </div>
             </div>
-            
+
             <!-- Widget 4: Selesai Hari Ini -->
-            <div class="bg-surface-container shadow-md rounded-2xl p-5 relative overflow-hidden group border border-outline-variant/30">
+            <div
+                class="bg-surface-container shadow-md rounded-2xl p-5 relative overflow-hidden group border border-outline-variant/30">
                 <div class="flex items-center justify-between mb-2">
-                    <span class="text-label-sm font-label-sm text-on-surface-variant uppercase tracking-wide text-xs">Selesai Hari Ini</span>
-                    <span class="material-symbols-outlined text-emerald-400 opacity-80 text-xl" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+                    <span
+                        class="text-label-sm font-label-sm text-on-surface-variant uppercase tracking-wide text-xs">Selesai
+                        Hari Ini</span>
+                    <span class="material-symbols-outlined text-emerald-400 opacity-80 text-xl"
+                        style="font-variation-settings: 'FILL' 1;">check_circle</span>
                 </div>
                 <div class="flex items-baseline gap-2">
                     <span class="text-3xl font-bold text-emerald-400 leading-none">{{ $selesaiHariIni }}</span>
@@ -364,32 +400,26 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
                         <div class="flex items-center gap-2">
                             <span class="material-symbols-outlined text-primary text-xl">content_cut</span>
                             <h2 class="text-lg font-bold text-on-surface">Job &amp; Orderan Saya</h2>
-                            <span class="text-xs bg-primary/20 text-primary px-2.5 py-0.5 rounded-full font-bold font-mono">{{ $orders->count() }} Job</span>
+                            <span
+                                class="text-xs bg-primary/20 text-primary px-2.5 py-0.5 rounded-full font-bold font-mono">{{ $orders->count() }}
+                                Job</span>
                         </div>
-                        
+
                         <!-- Date Filter Pills -->
                         <div class="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none text-xs">
-                            <button 
-                                wire:click="$set('filterTanggal', 'upcoming')" 
-                                type="button"
+                            <button wire:click="$set('filterTanggal', 'upcoming')" type="button"
                                 class="px-3 py-1.5 rounded-lg font-semibold transition-all whitespace-nowrap {{ $filterTanggal === 'upcoming' ? 'bg-primary text-on-primary shadow-sm' : 'bg-surface-container-high text-on-surface-variant hover:text-on-surface' }}">
                                 Semua Mendatang
                             </button>
-                            <button 
-                                wire:click="$set('filterTanggal', 'today')" 
-                                type="button"
+                            <button wire:click="$set('filterTanggal', 'today')" type="button"
                                 class="px-3 py-1.5 rounded-lg font-semibold transition-all whitespace-nowrap {{ $filterTanggal === 'today' ? 'bg-primary text-on-primary shadow-sm' : 'bg-surface-container-high text-on-surface-variant hover:text-on-surface' }}">
                                 Hari Ini
                             </button>
-                            <button 
-                                wire:click="$set('filterTanggal', 'tomorrow')" 
-                                type="button"
+                            <button wire:click="$set('filterTanggal', 'tomorrow')" type="button"
                                 class="px-3 py-1.5 rounded-lg font-semibold transition-all whitespace-nowrap {{ $filterTanggal === 'tomorrow' ? 'bg-primary text-on-primary shadow-sm' : 'bg-surface-container-high text-on-surface-variant hover:text-on-surface' }}">
                                 Besok
                             </button>
-                            <button 
-                                wire:click="$set('filterTanggal', 'all')" 
-                                type="button"
+                            <button wire:click="$set('filterTanggal', 'all')" type="button"
                                 class="px-3 py-1.5 rounded-lg font-semibold transition-all whitespace-nowrap {{ $filterTanggal === 'all' ? 'bg-primary text-on-primary shadow-sm' : 'bg-surface-container-high text-on-surface-variant hover:text-on-surface' }}">
                                 Semua Riwayat
                             </button>
@@ -399,43 +429,32 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
                     <!-- Status Filter Tabs -->
                     <div class="flex items-center justify-between border-t border-outline-variant/30 pt-3 text-xs">
                         <div class="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
-                            <span class="text-on-surface-variant text-[11px] font-medium mr-1 hidden sm:inline">Status:</span>
-                            <button 
-                                wire:click="$set('filterStatus', 'active')" 
-                                type="button"
+                            <span
+                                class="text-on-surface-variant text-[11px] font-medium mr-1 hidden sm:inline">Status:</span>
+                            <button wire:click="$set('filterStatus', 'active')" type="button"
                                 class="px-2.5 py-1 rounded-md font-medium transition-all {{ $filterStatus === 'active' ? 'bg-primary/20 text-primary border border-primary/40' : 'text-on-surface-variant hover:text-on-surface' }}">
                                 Aktif (Menunggu &amp; Diproses)
                             </button>
-                            <button 
-                                wire:click="$set('filterStatus', 'Menunggu')" 
-                                type="button"
+                            <button wire:click="$set('filterStatus', 'Menunggu')" type="button"
                                 class="px-2.5 py-1 rounded-md font-medium transition-all {{ $filterStatus === 'Menunggu' ? 'bg-primary/20 text-primary border border-primary/40' : 'text-on-surface-variant hover:text-on-surface' }}">
                                 Menunggu
                             </button>
-                            <button 
-                                wire:click="$set('filterStatus', 'Diproses')" 
-                                type="button"
+                            <button wire:click="$set('filterStatus', 'Diproses')" type="button"
                                 class="px-2.5 py-1 rounded-md font-medium transition-all {{ $filterStatus === 'Diproses' ? 'bg-primary/20 text-primary border border-primary/40' : 'text-on-surface-variant hover:text-on-surface' }}">
                                 Sedang Diproses
                             </button>
-                            <button 
-                                wire:click="$set('filterStatus', 'Selesai')" 
-                                type="button"
+                            <button wire:click="$set('filterStatus', 'Selesai')" type="button"
                                 class="px-2.5 py-1 rounded-md font-medium transition-all {{ $filterStatus === 'Selesai' ? 'bg-primary/20 text-primary border border-primary/40' : 'text-on-surface-variant hover:text-on-surface' }}">
                                 Selesai
                             </button>
-                            <button 
-                                wire:click="$set('filterStatus', 'all')" 
-                                type="button"
+                            <button wire:click="$set('filterStatus', 'all')" type="button"
                                 class="px-2.5 py-1 rounded-md font-medium transition-all {{ $filterStatus === 'all' ? 'bg-primary/20 text-primary border border-primary/40' : 'text-on-surface-variant hover:text-on-surface' }}">
                                 Semua
                             </button>
                         </div>
-                        
+
                         <div class="flex items-center gap-2">
-                            <input 
-                                type="date" 
-                                wire:model.live="customTanggal" 
+                            <input type="date" wire:model.live="customTanggal"
                                 wire:change="$set('filterTanggal', 'custom')"
                                 class="bg-surface-container-high text-on-surface text-xs rounded-lg px-2.5 py-1 border border-outline-variant/50 outline-none cursor-pointer">
                         </div>
@@ -449,14 +468,19 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
                             $isToday = $order->tanggal === $today;
                             $isTomorrow = $order->tanggal === $tomorrow;
                         @endphp
-                        <article class="bg-surface-container shadow-md rounded-2xl p-4 md:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 border border-outline-variant/30 hover:border-primary/50 transition-all relative overflow-hidden group">
+                        <article
+                            class="bg-surface-container shadow-md rounded-2xl p-4 md:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 border border-outline-variant/30 hover:border-primary/50 transition-all relative overflow-hidden group">
                             <!-- Left Accent Border -->
-                            <div class="absolute left-0 top-0 bottom-0 w-1.5 {{ $order->status === 'Diproses' ? 'bg-emerald-500' : ($order->status === 'Menunggu' ? 'bg-primary' : 'bg-surface-variant') }}"></div>
+                            <div
+                                class="absolute left-0 top-0 bottom-0 w-1.5 {{ $order->status === 'Diproses' ? 'bg-emerald-500' : ($order->status === 'Menunggu' ? 'bg-primary' : 'bg-surface-variant') }}">
+                            </div>
 
                             <div class="flex flex-col sm:flex-row sm:items-center gap-4 flex-1">
                                 <!-- Time & Date Box -->
-                                <div class="bg-surface-container-highest px-4 py-3 rounded-xl flex flex-col items-center justify-center min-w-[95px] shrink-0 border border-outline-variant/20">
-                                    <span class="text-[10px] font-bold uppercase tracking-wider {{ $isToday ? 'text-emerald-400' : ($isTomorrow ? 'text-primary' : 'text-on-surface-variant') }}">
+                                <div
+                                    class="bg-surface-container-highest px-4 py-3 rounded-xl flex flex-col items-center justify-center min-w-[95px] shrink-0 border border-outline-variant/20">
+                                    <span
+                                        class="text-[10px] font-bold uppercase tracking-wider {{ $isToday ? 'text-emerald-400' : ($isTomorrow ? 'text-primary' : 'text-on-surface-variant') }}">
                                         @if($isToday)
                                             Hari Ini
                                         @elseif($isTomorrow)
@@ -473,16 +497,20 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
 
                                 <!-- Customer & Service Info -->
                                 <div class="flex items-center gap-3.5 flex-1 min-w-0">
-                                    <div class="w-12 h-12 rounded-xl bg-surface-container-high border border-outline-variant/30 overflow-hidden shrink-0 flex items-center justify-center text-primary font-bold text-base shadow-sm">
+                                    <div
+                                        class="w-12 h-12 rounded-xl bg-surface-container-high border border-outline-variant/30 overflow-hidden shrink-0 flex items-center justify-center text-primary font-bold text-base shadow-sm">
                                         {{ substr(optional($order->pelanggan)->nama ?? 'P', 0, 2) }}
                                     </div>
                                     <div class="flex flex-col min-w-0">
                                         <div class="flex items-center gap-2 flex-wrap">
-                                            <h3 class="text-base font-bold text-on-surface truncate">{{ optional($order->pelanggan)->nama ?? 'Pelanggan Umum' }}</h3>
-                                            <span class="font-mono text-xs px-2 py-0.5 rounded font-bold {{ $order->tipe_antrean === 'Online' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-purple-500/20 text-purple-400 border border-purple-500/30' }}">
+                                            <h3 class="text-base font-bold text-on-surface truncate">
+                                                {{ optional($order->pelanggan)->nama ?? 'Pelanggan Umum' }}</h3>
+                                            <span
+                                                class="font-mono text-xs px-2 py-0.5 rounded font-bold {{ $order->tipe_antrean === 'Online' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-purple-500/20 text-purple-400 border border-purple-500/30' }}">
                                                 {{ $order->nomor_antrean }}
                                             </span>
-                                            <span class="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-semibold {{ $order->status === 'Diproses' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 animate-pulse' : ($order->status === 'Menunggu' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-surface-container-highest text-on-surface-variant') }}">
+                                            <span
+                                                class="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-semibold {{ $order->status === 'Diproses' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 animate-pulse' : ($order->status === 'Menunggu' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-surface-container-highest text-on-surface-variant') }}">
                                                 {{ $order->status }}
                                             </span>
                                         </div>
@@ -492,7 +520,8 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
                                                 {{ optional($order->layanan)->nama_layanan ?? '-' }}
                                             </span>
                                             <span>&bull;</span>
-                                            <span>Rp {{ number_format(optional($order->layanan)->harga ?? 0, 0, ',', '.') }}</span>
+                                            <span>Rp
+                                                {{ number_format(optional($order->layanan)->harga ?? 0, 0, ',', '.') }}</span>
                                             @if(optional($order->pelanggan)->no_telp)
                                                 <span>&bull;</span>
                                                 <span class="flex items-center gap-1">
@@ -506,32 +535,28 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
                             </div>
 
                             <!-- Action Buttons -->
-                            <div class="flex items-center gap-2 shrink-0 border-t sm:border-t-0 pt-3 sm:pt-0 border-outline-variant/30">
+                            <div
+                                class="flex items-center gap-2 shrink-0 border-t sm:border-t-0 pt-3 sm:pt-0 border-outline-variant/30">
                                 @if($order->status === 'Diproses')
-                                    <button 
-                                        wire:click="selesaiPengerjaanLangsung({{ $order->id }})" 
-                                        type="button"
+                                    <button wire:click="selesaiPengerjaanLangsung({{ $order->id }})" type="button"
                                         class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-emerald-600/20">
                                         <span class="material-symbols-outlined text-[18px]">check</span>
                                         <span>Selesai</span>
                                     </button>
-                                    <button 
-                                        wire:click="selesaiPengerjaan({{ $order->id }})" 
-                                        type="button"
+                                    <button wire:click="selesaiPengerjaan({{ $order->id }})" type="button"
                                         class="bg-primary hover:bg-primary-fixed text-on-primary px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-primary/20">
                                         <span class="material-symbols-outlined text-[18px]">point_of_sale</span>
                                         <span>Kasir/POS</span>
                                     </button>
                                 @elseif($order->status === 'Menunggu')
-                                    <button 
-                                        wire:click="mulaiPengerjaan({{ $order->id }})" 
-                                        type="button"
+                                    <button wire:click="mulaiPengerjaan({{ $order->id }})" type="button"
                                         class="bg-primary hover:bg-primary-fixed text-on-primary px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-primary/20">
                                         <span class="material-symbols-outlined text-[18px]">play_arrow</span>
                                         <span>Mulai Pengerjaan</span>
                                     </button>
                                 @else
-                                    <span class="text-xs text-on-surface-variant px-3 py-1.5 bg-surface-container-high rounded-lg flex items-center gap-1">
+                                    <span
+                                        class="text-xs text-on-surface-variant px-3 py-1.5 bg-surface-container-high rounded-lg flex items-center gap-1">
                                         <span class="material-symbols-outlined text-[16px] text-emerald-400">check_circle</span>
                                         <span>Job Selesai</span>
                                     </span>
@@ -539,13 +564,13 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
                             </div>
                         </article>
                     @empty
-                        <div class="bg-surface-container shadow-md rounded-2xl p-8 text-center border-2 border-dashed border-outline-variant/50">
+                        <div
+                            class="bg-surface-container shadow-md rounded-2xl p-8 text-center border-2 border-dashed border-outline-variant/50">
                             <span class="material-symbols-outlined text-4xl text-on-surface-variant mb-2">event_busy</span>
                             <h4 class="text-base font-bold text-on-surface">Tidak ada orderan untuk kriteria ini</h4>
-                            <p class="text-xs text-on-surface-variant mt-1">Coba ganti filter tanggal atau status untuk melihat jadwal lainnya.</p>
-                            <button 
-                                wire:click="$set('filterTanggal', 'all'); $set('filterStatus', 'all');" 
-                                type="button"
+                            <p class="text-xs text-on-surface-variant mt-1">Coba ganti filter tanggal atau status untuk
+                                melihat jadwal lainnya.</p>
+                            <button wire:click="$set('filterTanggal', 'all'); $set('filterStatus', 'all');" type="button"
                                 class="mt-4 px-4 py-2 bg-primary/20 text-primary hover:bg-primary/30 rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1.5">
                                 <span class="material-symbols-outlined text-[16px]">visibility</span>
                                 <span>Tampilkan Semua Orderan</span>
@@ -557,20 +582,23 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
 
             <!-- Right Column: Aksi Cepat & Info Kapster (col-span-1) -->
             <aside class="lg:col-span-1 flex flex-col gap-4 text-on-surface">
-                <div class="bg-surface-container shadow-md rounded-2xl p-5 flex flex-col gap-4 border border-outline-variant/30">
+                <div
+                    class="bg-surface-container shadow-md rounded-2xl p-5 flex flex-col gap-4 border border-outline-variant/30">
                     <h3 class="font-bold text-base text-on-surface flex items-center gap-2">
                         <span class="material-symbols-outlined text-primary text-xl">bolt</span>
                         <span>Aksi Cepat Kapster</span>
                     </h3>
 
-                    <button type="button" wire:click="openWalkInModal" class="w-full bg-primary/10 border-2 border-dashed border-primary/50 text-primary px-4 py-3.5 rounded-xl font-bold text-xs hover:bg-primary/20 hover:border-primary transition-all flex items-center justify-center gap-2 cursor-pointer">
+                    <button type="button" wire:click="openWalkInModal"
+                        class="w-full bg-primary/10 border-2 border-dashed border-primary/50 text-primary px-4 py-3.5 rounded-xl font-bold text-xs hover:bg-primary/20 hover:border-primary transition-all flex items-center justify-center gap-2 cursor-pointer">
                         <span class="material-symbols-outlined text-lg">person_add</span>
                         <span>Input Pelanggan Walk-In</span>
                     </button>
 
                     <div class="w-full h-px bg-outline-variant/30 my-1"></div>
 
-                    <a href="{{ route('admin.antrean') }}" class="w-full bg-surface-container-high text-on-surface px-4 py-3 rounded-xl text-xs font-semibold hover:bg-surface-container-highest hover:text-primary transition-all flex items-center justify-between shadow-sm">
+                    <a href="{{ route('admin.antrean') }}"
+                        class="w-full bg-surface-container-high text-on-surface px-4 py-3 rounded-xl text-xs font-semibold hover:bg-surface-container-highest hover:text-primary transition-all flex items-center justify-between shadow-sm">
                         <div class="flex items-center gap-2.5">
                             <span class="material-symbols-outlined text-primary text-[18px]">view_kanban</span>
                             <span>Papan Antrean Terpadu</span>
@@ -578,7 +606,8 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
                         <span class="material-symbols-outlined text-primary text-[16px]">chevron_right</span>
                     </a>
 
-                    <a href="{{ route('admin.stok') }}" class="w-full bg-surface-container-high text-on-surface px-4 py-3 rounded-xl text-xs font-semibold hover:bg-surface-container-highest hover:text-primary transition-all flex items-center justify-between shadow-sm">
+                    <a href="{{ route('admin.stok') }}"
+                        class="w-full bg-surface-container-high text-on-surface px-4 py-3 rounded-xl text-xs font-semibold hover:bg-surface-container-highest hover:text-primary transition-all flex items-center justify-between shadow-sm">
                         <div class="flex items-center gap-2.5">
                             <span class="material-symbols-outlined text-primary text-[18px]">inventory_2</span>
                             <span>Lapor Ekstra (Silet / Tisu)</span>
@@ -586,7 +615,8 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
                         <span class="material-symbols-outlined text-primary text-[16px]">chevron_right</span>
                     </a>
 
-                    <a href="{{ route('staff.absensi') }}" class="w-full bg-surface-container-high text-on-surface px-4 py-3 rounded-xl text-xs font-semibold hover:bg-surface-container-highest hover:text-primary transition-all flex items-center justify-between shadow-sm">
+                    <a href="{{ route('staff.absensi') }}"
+                        class="w-full bg-surface-container-high text-on-surface px-4 py-3 rounded-xl text-xs font-semibold hover:bg-surface-container-highest hover:text-primary transition-all flex items-center justify-between shadow-sm">
                         <div class="flex items-center gap-2.5">
                             <span class="material-symbols-outlined text-primary text-[18px]">how_to_reg</span>
                             <span>Absensi Kehadiran</span>
@@ -596,16 +626,20 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
                 </div>
 
                 <!-- Info Pelayanan Hari Ini -->
-                <div class="bg-surface-container/60 rounded-2xl p-5 border border-outline-variant/30 text-xs text-on-surface-variant space-y-2.5">
+                <div
+                    class="bg-surface-container/60 rounded-2xl p-5 border border-outline-variant/30 text-xs text-on-surface-variant space-y-2.5">
                     <span class="font-bold text-on-surface block text-sm">Petunjuk Operasional</span>
                     <p class="leading-relaxed">
-                        1. Klik <strong>Mulai Pengerjaan</strong> saat pelanggan sudah duduk di kursi Anda. Status akan otomatis berubah menjadi "Sedang Diproses" di papan antrean toko dan homepage pelanggan.
+                        1. Klik <strong>Mulai Pengerjaan</strong> saat pelanggan sudah duduk di kursi Anda. Status akan
+                        otomatis berubah menjadi "Sedang Diproses" di papan antrean toko dan homepage pelanggan.
                     </p>
                     <p class="leading-relaxed">
-                        2. Setelah selesai mencukur, klik <strong>Selesai</strong> jika tanpa transaksi kasir tambahan, atau klik <strong>Kasir/POS</strong> untuk menyelesaikan pembayaran.
+                        2. Setelah selesai mencukur, klik <strong>Selesai</strong> jika tanpa transaksi kasir tambahan,
+                        atau klik <strong>Kasir/POS</strong> untuk menyelesaikan pembayaran.
                     </p>
                     <p class="leading-relaxed">
-                        3. Seluruh perubahan status langsung tersinkronisasi otomatis ke Google Spreadsheet secara real-time.
+                        3. Seluruh perubahan status langsung tersinkronisasi otomatis ke Google Spreadsheet secara
+                        real-time.
                     </p>
                 </div>
             </aside>
@@ -615,14 +649,17 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
     <!-- Walk-In Modal untuk Kapster -->
     @if($showWalkInModal)
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
-            <div class="w-full max-w-lg bg-surface-container-high rounded-2xl shadow-2xl overflow-hidden border border-outline-variant/40 animate-[scale-up_0.2s_ease-out]">
+            <div
+                class="w-full max-w-lg bg-surface-container-high rounded-2xl shadow-2xl overflow-hidden border border-outline-variant/40 animate-[scale-up_0.2s_ease-out]">
                 <!-- Header -->
-                <div class="flex items-center justify-between p-5 bg-surface-container-highest border-b border-outline-variant/30">
+                <div
+                    class="flex items-center justify-between p-5 bg-surface-container-highest border-b border-outline-variant/30">
                     <div class="flex items-center gap-2">
                         <span class="material-symbols-outlined text-primary text-xl">person_add</span>
                         <h2 class="font-bold text-lg text-on-surface">Tambah Antrean Walk-In (Job Anda)</h2>
                     </div>
-                    <button wire:click="$set('showWalkInModal', false)" class="text-on-surface-variant hover:text-primary transition-colors focus:outline-none cursor-pointer">
+                    <button wire:click="$set('showWalkInModal', false)"
+                        class="text-on-surface-variant hover:text-primary transition-colors focus:outline-none cursor-pointer">
                         <span class="material-symbols-outlined">close</span>
                     </button>
                 </div>
@@ -630,15 +667,20 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
                 <div class="p-5 space-y-4">
                     <!-- Customer Name -->
                     <div class="space-y-1.5">
-                        <label class="block text-xs uppercase font-bold text-on-surface-variant tracking-wider">Nama Pelanggan Walk-In</label>
-                        <input wire:model="walkInName" class="w-full bg-surface-container text-on-surface text-sm px-4 py-2.5 rounded-xl border border-outline-variant/40 focus:outline-none focus:border-primary transition-colors" placeholder="Masukkan nama pelanggan..." type="text">
+                        <label class="block text-xs uppercase font-bold text-on-surface-variant tracking-wider">Nama
+                            Pelanggan Walk-In</label>
+                        <input wire:model="walkInName"
+                            class="w-full bg-surface-container text-on-surface text-sm px-4 py-2.5 rounded-xl border border-outline-variant/40 focus:outline-none focus:border-primary transition-colors"
+                            placeholder="Masukkan nama pelanggan..." type="text">
                         @error('walkInName') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
                     </div>
                     <!-- Service & Barber Row -->
                     <div class="grid grid-cols-2 gap-4">
                         <div class="space-y-1.5">
-                            <label class="block text-xs uppercase font-bold text-on-surface-variant tracking-wider">Layanan</label>
-                            <select wire:model="walkInLayanan" class="w-full bg-surface-container text-on-surface text-sm px-3.5 py-2.5 rounded-xl border border-outline-variant/40 focus:outline-none focus:border-primary transition-colors">
+                            <label
+                                class="block text-xs uppercase font-bold text-on-surface-variant tracking-wider">Layanan</label>
+                            <select wire:model="walkInLayanan"
+                                class="w-full bg-surface-container text-on-surface text-sm px-3.5 py-2.5 rounded-xl border border-outline-variant/40 focus:outline-none focus:border-primary transition-colors">
                                 <option value="">Pilih Layanan</option>
                                 @foreach($layanans as $l)
                                     <option value="{{ $l->id }}">{{ $l->nama_layanan }}</option>
@@ -647,8 +689,10 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
                             @error('walkInLayanan') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
                         </div>
                         <div class="space-y-1.5">
-                            <label class="block text-xs uppercase font-bold text-on-surface-variant tracking-wider">Kapster Bertugas</label>
-                            <div class="w-full bg-surface-container text-on-surface text-sm px-4 py-2.5 rounded-xl border border-outline-variant/40 flex items-center justify-between">
+                            <label class="block text-xs uppercase font-bold text-on-surface-variant tracking-wider">Kapster
+                                Bertugas</label>
+                            <div
+                                class="w-full bg-surface-container text-on-surface text-sm px-4 py-2.5 rounded-xl border border-outline-variant/40 flex items-center justify-between">
                                 <span class="truncate">{{ auth()->user()->nama }}</span>
                                 <span class="text-xs text-primary font-bold shrink-0">(Anda)</span>
                             </div>
@@ -656,11 +700,14 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
                     </div>
                     <!-- Time Slot Grid -->
                     <div class="space-y-2 pt-2">
-                        <label class="block text-xs uppercase font-bold text-on-surface-variant tracking-wider">Pilih Jam</label>
+                        <label class="block text-xs uppercase font-bold text-on-surface-variant tracking-wider">Pilih
+                            Jam</label>
                         <div class="grid grid-cols-4 gap-2">
                             <label class="cursor-pointer col-span-2" wire:click="setWalkInTimeNow">
-                                <input wire:model="walkInTime" value="{{ now()->format('H:i:s') }}" class="peer sr-only" type="radio">
-                                <div class="py-2 rounded-lg border border-outline-variant/30 bg-surface-container text-on-surface text-center hover:bg-surface-container-high transition-colors text-xs font-mono peer-checked:border-primary peer-checked:bg-primary/15 peer-checked:text-primary font-bold flex items-center justify-center gap-1">
+                                <input wire:model="walkInTime" value="{{ now()->format('H:i:s') }}" class="peer sr-only"
+                                    type="radio">
+                                <div
+                                    class="py-2 rounded-lg border border-outline-variant/30 bg-surface-container text-on-surface text-center hover:bg-surface-container-high transition-colors text-xs font-mono peer-checked:border-primary peer-checked:bg-primary/15 peer-checked:text-primary font-bold flex items-center justify-center gap-1">
                                     <span class="material-symbols-outlined text-sm">schedule</span>
                                     <span>Sekarang ({{ now()->format('H:i') }})</span>
                                 </div>
@@ -668,7 +715,8 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
                             @foreach($timeSlots as $time)
                                 <label class="cursor-pointer">
                                     <input wire:model="walkInTime" value="{{ $time }}" class="peer sr-only" type="radio">
-                                    <div class="py-2 rounded-lg border border-outline-variant/30 bg-surface-container text-on-surface text-center hover:bg-surface-container-high transition-colors text-xs font-mono peer-checked:border-primary peer-checked:bg-primary/15 peer-checked:text-primary font-bold">
+                                    <div
+                                        class="py-2 rounded-lg border border-outline-variant/30 bg-surface-container text-on-surface text-center hover:bg-surface-container-high transition-colors text-xs font-mono peer-checked:border-primary peer-checked:bg-primary/15 peer-checked:text-primary font-bold">
                                         {{ $time }}
                                     </div>
                                 </label>
@@ -678,13 +726,18 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
                     </div>
                 </div>
                 <!-- Footer -->
-                <div class="p-5 bg-surface-container-highest border-t border-outline-variant/30 flex items-center justify-end gap-3">
-                    <button wire:click="$set('showWalkInModal', false)" type="button" class="px-4 py-2 text-xs font-semibold text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer">
+                <div
+                    class="p-5 bg-surface-container-highest border-t border-outline-variant/30 flex items-center justify-end gap-3">
+                    <button wire:click="$set('showWalkInModal', false)" type="button"
+                        class="px-4 py-2 text-xs font-semibold text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer">
                         Batal
                     </button>
-                    <button wire:click="saveWalkIn" wire:loading.attr="disabled" type="button" class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold rounded-xl hover:bg-primary-fixed transition-all flex items-center gap-1.5 shadow-md shadow-primary/20 cursor-pointer">
-                        <span wire:loading.remove wire:target="saveWalkIn" class="material-symbols-outlined text-[16px]">check</span>
-                        <span wire:loading wire:target="saveWalkIn" class="material-symbols-outlined text-[16px] animate-spin">refresh</span>
+                    <button wire:click="saveWalkIn" wire:loading.attr="disabled" type="button"
+                        class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold rounded-xl hover:bg-primary-fixed transition-all flex items-center gap-1.5 shadow-md shadow-primary/20 cursor-pointer">
+                        <span wire:loading.remove wire:target="saveWalkIn"
+                            class="material-symbols-outlined text-[16px]">check</span>
+                        <span wire:loading wire:target="saveWalkIn"
+                            class="material-symbols-outlined text-[16px] animate-spin">refresh</span>
                         <span>Simpan Antrean</span>
                     </button>
                 </div>

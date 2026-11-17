@@ -78,17 +78,19 @@ new #[Layout('components.layouts.blank')] #[Title('Ran CukurIn - Precision in Ev
                 ->with('layanan')
                 ->orderBy('waktu_estimasi_mulai', 'asc');
             
-            $menungguList = $menungguQuery->get();
+            $menungguList = $menungguQuery->take(4)->get();
+            $menungguCount = AntreanPemesanan::where('kapster_id', $selectedId)->where('status', 'Menunggu')->whereDate('tanggal', $today)->count();
             if ($menungguList->isEmpty()) {
+                $menungguCount = AntreanPemesanan::where('kapster_id', $selectedId)->where('status', 'Menunggu')->count();
                 $menungguList = AntreanPemesanan::where('kapster_id', $selectedId)
                     ->where('status', 'Menunggu')
                     ->with('layanan')
                     ->orderBy('waktu_estimasi_mulai', 'asc')
+                    ->take(4)
                     ->get();
             }
 
-            $menungguCount = $menungguList->count();
-            $daftarMenunggu = $menungguList->take(4);
+            $daftarMenunggu = $menungguList;
             $ewt = AntreanPemesanan::hitungEwtKapster($selectedId);
         } else {
             // Live Antrean Data Global
@@ -110,16 +112,18 @@ new #[Layout('components.layouts.blank')] #[Title('Ran CukurIn - Precision in Ev
                 ->with(['layanan', 'kapster'])
                 ->orderBy('waktu_estimasi_mulai', 'asc');
 
-            $menungguList = $menungguQuery->get();
+            $menungguList = $menungguQuery->take(4)->get();
+            $menungguCount = AntreanPemesanan::where('status', 'Menunggu')->whereDate('tanggal', $today)->count();
             if ($menungguList->isEmpty()) {
+                $menungguCount = AntreanPemesanan::where('status', 'Menunggu')->count();
                 $menungguList = AntreanPemesanan::where('status', 'Menunggu')
                     ->with(['layanan', 'kapster'])
                     ->orderBy('waktu_estimasi_mulai', 'asc')
+                    ->take(4)
                     ->get();
             }
 
-            $menungguCount = $menungguList->count();
-            $daftarMenunggu = $menungguList->take(4);
+            $daftarMenunggu = $menungguList;
             $ewt = AntreanPemesanan::hitungEwtToko();
         }
 

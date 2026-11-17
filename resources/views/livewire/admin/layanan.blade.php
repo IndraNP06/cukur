@@ -23,14 +23,8 @@ new #[Layout('components.layouts.admin')] #[Title('Kelola Layanan - Ran Cukurin'
  public $gambar;
  public $is_active = true;
 
- public function mount() {
- try {
- if (!cache()->has('sheets_synced_layanan_admin')) {
- app(\App\Services\GoogleSheetsService::class)->pullTable('layanan');
- cache()->put('sheets_synced_layanan_admin', true, now()->addSeconds(15));
- }
- } catch (\Throwable $e) {}
- }
+    public function mount() {
+    }
 
  public function syncFromSheets() {
  try {

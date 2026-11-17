@@ -128,6 +128,8 @@ class GoogleSheetsService
             // Bersihkan data lama agar sinkron persis dengan spreadsheet
             DB::table($table)->truncate();
 
+            DB::beginTransaction();
+            $batch = [];
             foreach ($lines as $line) {
                 if (empty(trim($line))) continue;
                 $row = str_getcsv($line);
@@ -195,14 +197,28 @@ class GoogleSheetsService
                 }
 
                 if (!empty($record)) {
-                    try {
-                        DB::table($table)->insert($record);
-                        $imported++;
-                    } catch (\Throwable $e) {
-                        Log::warning("Gagal insert baris di $table: " . $e->getMessage());
+                    $batch[] = $record;
+                    if (count($batch) >= 100) {
+                        try {
+                            DB::table($table)->insert($batch);
+                            $imported += count($batch);
+                        } catch (\Throwable $e) {
+                            Log::warning("Gagal insert batch di $table: " . $e->getMessage());
+                        }
+                        $batch = [];
                     }
                 }
             }
+
+            if (!empty($batch)) {
+                try {
+                    DB::table($table)->insert($batch);
+                    $imported += count($batch);
+                } catch (\Throwable $e) {
+                    Log::warning("Gagal insert sisa batch di $table: " . $e->getMessage());
+                }
+            }
+            DB::commit();
 
             // Pastikan role Spatie terhubung untuk tabel pengguna
             if ($table === 'pengguna') {

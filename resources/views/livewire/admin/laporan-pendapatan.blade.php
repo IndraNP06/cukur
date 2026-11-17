@@ -3,12 +3,15 @@
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Volt\Component;
+use Livewire\WithPagination;
 use App\Models\Transaksi;
 use App\Models\DetailTransaksi;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
 new #[Layout('components.layouts.admin')] #[Title('Laporan Pendapatan - Ran CukurIn')] class extends Component {
+    use WithPagination;
+
     public $month;
     public $year;
     public $metodeBayar = 'all';
@@ -21,16 +24,12 @@ new #[Layout('components.layouts.admin')] #[Title('Laporan Pendapatan - Ran Cuku
         // Default filter ke bulan & tahun saat ini
         $this->month = (string) Carbon::now()->month;
         $this->year = (string) Carbon::now()->year;
-
-        // Auto-pull transaksi dari Google Spreadsheet saat pertama kali dibuka (cache 30s)
-        try {
-            if (!cache()->has('sheets_sync_laporan_pendapatan')) {
-                $sheetsService = app(\App\Services\GoogleSheetsService::class);
-                $sheetsService->pullTable('transaksi');
-                cache()->put('sheets_sync_laporan_pendapatan', true, now()->addSeconds(30));
-            }
-        } catch (\Throwable $e) {}
     }
+
+    public function updatedSearchQuery() { $this->resetPage(); }
+    public function updatedMonth() { $this->resetPage(); }
+    public function updatedYear() { $this->resetPage(); }
+    public function updatedMetodeBayar() { $this->resetPage(); }
 
     public function syncFromSheets()
     {
@@ -48,6 +47,7 @@ new #[Layout('components.layouts.admin')] #[Title('Laporan Pendapatan - Ran Cuku
     {
         $this->month = (string) Carbon::now()->month;
         $this->year = (string) Carbon::now()->year;
+        $this->resetPage();
     }
 
     public function setFilterLastMonth()
@@ -55,18 +55,21 @@ new #[Layout('components.layouts.admin')] #[Title('Laporan Pendapatan - Ran Cuku
         $last = Carbon::now()->subMonth();
         $this->month = (string) $last->month;
         $this->year = (string) $last->year;
+        $this->resetPage();
     }
 
     public function setFilterThisYear()
     {
         $this->month = 'all';
         $this->year = (string) Carbon::now()->year;
+        $this->resetPage();
     }
 
     public function setFilterAll()
     {
         $this->month = 'all';
         $this->year = 'all';
+        $this->resetPage();
     }
 
     public function resetFilters()
@@ -75,6 +78,7 @@ new #[Layout('components.layouts.admin')] #[Title('Laporan Pendapatan - Ran Cuku
         $this->year = (string) Carbon::now()->year;
         $this->metodeBayar = 'all';
         $this->searchQuery = '';
+        $this->resetPage();
     }
 
     public function openDetailModal($id)
@@ -91,9 +95,7 @@ new #[Layout('components.layouts.admin')] #[Title('Laporan Pendapatan - Ran Cuku
 
     public function with()
     {
-        $transaksisQuery = Transaksi::with(['detailTransaksi', 'antrean.pelanggan', 'antrean.layanan', 'antrean.kapster', 'kasir'])
-            ->orderBy('tanggal_bayar', 'desc')
-            ->orderBy('id', 'desc');
+        $transaksisQuery = Transaksi::query();
 
         // Filter berdasarkan Bulan dan Tahun yang dipilih
         if ($this->month !== 'all' && $this->year !== 'all') {
@@ -145,33 +147,26 @@ new #[Layout('components.layouts.admin')] #[Title('Laporan Pendapatan - Ran Cuku
             });
         }
 
-        $transaksis = $transaksisQuery->get();
-
-        $totalPendapatanKotor = (float) $transaksis->sum('subtotal');
-        $totalPendapatanBersih = (float) $transaksis->sum('total_akhir');
-        $totalDiskon = (float) $transaksis->sum('total_diskon');
-
-        // Kalkulasi Layanan vs Produk
-        $pendapatanLayanan = 0;
-        $pendapatanProduk = 0;
-
-        foreach ($transaksis as $trx) {
-            if ($trx->detailTransaksi && $trx->detailTransaksi->count() > 0) {
-                foreach ($trx->detailTransaksi as $dt) {
-                    if ($dt->tipe_item === 'Layanan') {
-                        $pendapatanLayanan += (float)$dt->subtotal;
-                    } elseif ($dt->tipe_item === 'Barang') {
-                        $pendapatanProduk += (float)$dt->subtotal;
-                    }
-                }
-            } else {
-                // Fallback untuk transaksi barbershop yang terhubung dengan layanan antrean
-                $pendapatanLayanan += (float)$trx->subtotal;
-            }
-        }
-
-        $totalTransaksi = $transaksis->count();
+        // Hitung ringkasan finansial langsung via SQL Aggregates (super cepat, tidak membebani memory)
+        $totalPendapatanKotor = (float) (clone $transaksisQuery)->sum('subtotal');
+        $totalPendapatanBersih = (float) (clone $transaksisQuery)->sum('total_akhir');
+        $totalDiskon = (float) (clone $transaksisQuery)->sum('total_diskon');
+        $totalTransaksi = (clone $transaksisQuery)->count();
         $rataRataTrx = $totalTransaksi > 0 ? $totalPendapatanBersih / $totalTransaksi : 0;
+
+        // Breakdown Layanan vs Produk via query aggregate detail_transaksi
+        $trxIds = (clone $transaksisQuery)->select('id');
+        $pendapatanProduk = (float) DetailTransaksi::whereIn('transaksi_id', $trxIds)
+            ->where('tipe_item', 'Barang')
+            ->sum('subtotal');
+        $pendapatanLayanan = $totalPendapatanKotor - $pendapatanProduk;
+
+        // Paginate daftar transaksi untuk tabel (25 per halaman)
+        $transaksis = (clone $transaksisQuery)
+            ->with(['detailTransaksi', 'antrean.pelanggan', 'antrean.layanan', 'antrean.kapster', 'kasir'])
+            ->orderBy('tanggal_bayar', 'desc')
+            ->orderBy('id', 'desc')
+            ->paginate(25);
 
         // Selected Transaksi untuk modal struk
         $selectedTransaksi = null;
@@ -479,7 +474,7 @@ new #[Layout('components.layouts.admin')] #[Title('Laporan Pendapatan - Ran Cuku
                 <p class="text-xs text-on-surface-variant">Catatan pembukuan pembayaran kasir barbershop.</p>
             </div>
             <div class="text-xs text-on-surface-variant bg-surface-container px-3 py-1.5 rounded-lg border border-outline-variant/30">
-                Menampilkan <strong class="text-primary">{{ count($transaksis) }}</strong> data transaksi
+                Menampilkan <strong class="text-primary">{{ $transaksis->firstItem() ?? 0 }}-{{ $transaksis->lastItem() ?? 0 }}</strong> dari total <strong class="text-primary">{{ $totalTransaksi }}</strong> data transaksi
             </div>
         </div>
 
@@ -575,6 +570,12 @@ new #[Layout('components.layouts.admin')] #[Title('Laporan Pendapatan - Ran Cuku
                 </tbody>
             </table>
         </div>
+
+        @if($transaksis->hasPages())
+            <div class="p-4 bg-surface-container-high border-t border-surface-container-highest">
+                {{ $transaksis->links() }}
+            </div>
+        @endif
     </div>
 
     <!-- MODAL RINCIAN STRUK TRANSAKSI -->

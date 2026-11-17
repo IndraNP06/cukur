@@ -30,14 +30,6 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
         if (request()->query('action') === 'walkin') {
             $this->openWalkInModal();
         }
-
-        // Sinkronkan data antrean terbaru dari Google Spreadsheet saat pertama kali dibuka
-        try {
-            if (!cache()->has('sheets_sync_antrean_board')) {
-                app(\App\Services\GoogleSheetsService::class)->pullTable('antrean_pemesanan');
-                cache()->put('sheets_sync_antrean_board', true, now()->addSeconds(10));
-            }
-        } catch (\Throwable $e) {}
     }
 
     public function openWalkInModal() {
@@ -192,14 +184,6 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
     }
 
     public function with() {
-        // Auto-pull dari Google Sheets jika cache habis (setiap 10 detik saat wire:poll)
-        try {
-            if (!cache()->has('sheets_sync_antrean_board')) {
-                app(\App\Services\GoogleSheetsService::class)->pullTable('antrean_pemesanan');
-                cache()->put('sheets_sync_antrean_board', true, now()->addSeconds(10));
-            }
-        } catch (\Throwable $e) {}
-
         $isKapster = auth()->check() && auth()->user()->role === 'Kapster';
         if ($isKapster && $this->filterKapster === 'all') {
             $this->filterKapster = (string)auth()->id();
@@ -258,15 +242,26 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
         }
 
         $semuaAntrean = $query->orderBy('tanggal', 'asc')->orderBy('waktu_estimasi_mulai', 'asc')->get();
+        $selesaiAll = $semuaAntrean->where('status', 'Selesai');
+        $totalSelesaiCount = $selesaiAll->count();
+        // Batasi 30 antrean selesai paling terbaru untuk rendering DOM cepat dan mulus
+        $selesai = $selesaiAll->sortByDesc('id')->take(30);
+
+        $menungguAll = $semuaAntrean->where('status', 'Menunggu');
+        $totalMenungguCount = $menungguAll->count();
+        // Batasi 30 antrean menunggu terdekat untuk rendering DOM cepat dan mulus
+        $menunggu = $menungguAll->take(30);
 
         return [
             'isKapster' => $isKapster,
             'kapsters' => $kapsters,
             'kapsterSummary' => $kapsterSummary,
             'layanans' => Layanan::where('is_active', true)->get(),
-            'menunggu' => $semuaAntrean->where('status', 'Menunggu'),
+            'menunggu' => $menunggu,
+            'totalMenungguCount' => $totalMenungguCount,
             'diproses' => $semuaAntrean->where('status', 'Diproses'),
-            'selesai' => $semuaAntrean->where('status', 'Selesai'),
+            'selesai' => $selesai,
+            'totalSelesaiCount' => $totalSelesaiCount,
             'today' => $today,
             'tomorrow' => $tomorrow,
             'timeSlots' => [
@@ -444,10 +439,15 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
                     <h2 class="font-bold text-base text-on-surface">Menunggu Giliran</h2>
                 </div>
                 <span class="bg-amber-400/10 text-amber-400 border border-amber-400/20 font-mono text-xs px-2.5 py-0.5 rounded-full font-bold">
-                    {{ $menunggu->count() }}
+                    {{ $totalMenungguCount }}
                 </span>
             </div>
             <div class="p-4 overflow-y-auto space-y-3.5 flex-1 max-h-[700px]">
+                @if($totalMenungguCount > count($menunggu))
+                    <div class="text-[11px] text-center text-on-surface-variant/70 italic pb-1">
+                        Menampilkan {{ count($menunggu) }} antrean terdekat dari total {{ $totalMenungguCount }} antrean
+                    </div>
+                @endif
                 @forelse($menunggu as $a)
                     @php
                         $isToday = $a->tanggal === $today;
@@ -569,10 +569,15 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
                     <h2 class="font-bold text-base text-on-surface-variant">Selesai</h2>
                 </div>
                 <span class="bg-surface-container-highest text-on-surface-variant font-mono text-xs px-2.5 py-0.5 rounded-full font-bold">
-                    {{ $selesai->count() }}
+                    {{ $totalSelesaiCount }}
                 </span>
             </div>
             <div class="p-4 overflow-y-auto space-y-3.5 flex-1 max-h-[700px]">
+                @if($totalSelesaiCount > count($selesai))
+                    <div class="text-[11px] text-center text-on-surface-variant/70 italic pb-1">
+                        Menampilkan {{ count($selesai) }} riwayat selesai terbaru dari total {{ $totalSelesaiCount }} antrean
+                    </div>
+                @endif
                 @forelse($selesai as $a)
                     <div class="bg-surface-container/70 rounded-xl p-4 shadow-sm border border-outline-variant/20 relative group hover:border-outline-variant/50 transition-all">
                         <div class="flex justify-between items-start mb-2">

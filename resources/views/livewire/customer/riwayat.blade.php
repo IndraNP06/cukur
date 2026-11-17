@@ -13,12 +13,6 @@ new #[Layout('components.layouts.admin')] #[Title('Riwayat Transaksi - Ran Cukur
 
  public function mount()
  {
-     try {
-         if (auth()->check() && !cache()->has('sheets_sync_ulasan_customer_' . auth()->id())) {
-             app(\App\Services\GoogleSheetsService::class)->pullTable('ulasan');
-             cache()->put('sheets_sync_ulasan_customer_' . auth()->id(), true, now()->addSeconds(15));
-         }
-     } catch (\Throwable $e) {}
  }
 
  public function setFilter($filter)

@@ -7,14 +7,8 @@ use App\Models\Layanan;
 use App\Models\User;
 
 new #[Layout('components.layouts.blank')] #[Title('Katalog Layanan & Profil Kapster - Ran CukurIn')] class extends Component {
- public function mount() {
- try {
- if (!cache()->has('sheets_synced_katalog_fresh')) {
- app(\App\Services\GoogleSheetsService::class)->pullTable('layanan');
- cache()->put('sheets_synced_katalog_fresh', true, now()->addSeconds(15));
- }
- } catch (\Throwable $e) {}
- }
+    public function mount() {
+    }
 
  public function with() {
  $q = request('q');

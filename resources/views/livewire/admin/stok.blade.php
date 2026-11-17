@@ -32,13 +32,6 @@ new #[Layout('components.layouts.admin')] #[Title('Lapor Ekstra Barang & Mutasi 
     }
 
     public function mount() {
-        // Tarik data barang terbaru dari Google Spreadsheet saat dibuka
-        try {
-            if (!cache()->has('sheets_sync_barang_stok')) {
-                app(\App\Services\GoogleSheetsService::class)->pullTable('barang');
-                cache()->put('sheets_sync_barang_stok', true, now()->addSeconds(10));
-            }
-        } catch (\Throwable $e) {}
     }
 
     public function syncFromSheets() {
@@ -115,14 +108,6 @@ new #[Layout('components.layouts.admin')] #[Title('Lapor Ekstra Barang & Mutasi 
     }
 
     public function with() {
-        // Auto-pull dari Google Sheets jika cache habis (setiap 10 detik saat wire:poll)
-        try {
-            if (!cache()->has('sheets_sync_barang_stok')) {
-                app(\App\Services\GoogleSheetsService::class)->pullTable('barang');
-                cache()->put('sheets_sync_barang_stok', true, now()->addSeconds(10));
-            }
-        } catch (\Throwable $e) {}
-
         $query = LogStok::with(['barang', 'pencatat'])
             ->when($this->filterJenis !== 'all', function($q) {
                 if ($this->filterJenis === 'masuk') {
