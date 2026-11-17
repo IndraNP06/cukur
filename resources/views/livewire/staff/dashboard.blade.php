@@ -2,7 +2,10 @@
 
 use App\Models\AntreanPemesanan;
 use App\Models\JadwalShift;
+use App\Models\User;
+use App\Models\Layanan;
 use Carbon\Carbon;
+use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Volt\Component;
@@ -11,6 +14,12 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
     public $filterTanggal = 'upcoming'; // 'upcoming', 'today', 'tomorrow', 'all', 'custom'
     public $customTanggal = '';
     public $filterStatus = 'active'; // 'active', 'Menunggu', 'Diproses', 'Selesai', 'all'
+
+    // Walk-In Modal
+    public $showWalkInModal = false;
+    public $walkInName = '';
+    public $walkInLayanan = null;
+    public $walkInTime = null;
 
     public function mount()
     {
@@ -65,6 +74,95 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
     public function selesaiPengerjaan($id)
     {
         return redirect()->route('admin.pos', ['antrean_id' => $id]);
+    }
+
+    public function openWalkInModal()
+    {
+        $this->resetValidation();
+        $this->reset(['walkInName', 'walkInLayanan']);
+        $this->walkInTime = now()->format('H:i:s');
+        $this->showWalkInModal = true;
+    }
+
+    public function setWalkInTimeNow()
+    {
+        $this->walkInTime = now()->format('H:i:s');
+    }
+
+    public function saveWalkIn()
+    {
+        if (empty($this->walkInTime)) {
+            $this->walkInTime = now()->format('H:i:s');
+        }
+
+        $this->validate([
+            'walkInName' => 'required|string|max:255',
+            'walkInLayanan' => 'required|exists:layanan,id',
+            'walkInTime' => 'required'
+        ]);
+
+        try {
+            $dummyEmail = 'walkin_' . time() . '_' . Str::random(5) . '@rancukurin.local';
+            $user = User::create([
+                'nama' => $this->walkInName . ' (Walk-In)',
+                'email' => $dummyEmail,
+                'password' => bcrypt('password123'),
+                'role' => 'Pelanggan',
+            ]);
+            try {
+                $user->assignRole('Pelanggan');
+            } catch (\Throwable $e) {}
+
+            try {
+                app(\App\Services\GoogleSheetsService::class)->appendRow('pengguna', [
+                    'id' => $user->id,
+                    'nama' => $user->nama,
+                    'email' => $user->email,
+                    'role' => 'Pelanggan',
+                    'created_at' => now()->toDateTimeString(),
+                ]);
+            } catch (\Throwable $e) {}
+
+            $tanggalWalkIn = now()->format('Y-m-d');
+            if ($this->filterTanggal === 'tomorrow') {
+                $tanggalWalkIn = now()->addDay()->format('Y-m-d');
+            } elseif ($this->filterTanggal === 'custom' && !empty($this->customTanggal)) {
+                $tanggalWalkIn = $this->customTanggal;
+            }
+
+            $antrean = AntreanPemesanan::create([
+                'pelanggan_id' => $user->id,
+                'kapster_id' => auth()->id(),
+                'layanan_id' => $this->walkInLayanan,
+                'tipe_antrean' => 'WalkIn',
+                'nomor_antrean' => 'WLK-' . strtoupper(Str::random(5)),
+                'tanggal' => $tanggalWalkIn,
+                'waktu_estimasi_mulai' => $this->walkInTime,
+                'status' => 'Menunggu'
+            ]);
+
+            try {
+                app(\App\Services\GoogleSheetsService::class)->appendRow('antrean_pemesanan', [
+                    'id' => $antrean->id,
+                    'nomor_antrean' => $antrean->nomor_antrean,
+                    'pelanggan_id' => $antrean->pelanggan_id,
+                    'kapster_id' => $antrean->kapster_id,
+                    'layanan_id' => $antrean->layanan_id,
+                    'tipe_antrean' => $antrean->tipe_antrean,
+                    'tanggal' => $antrean->tanggal,
+                    'waktu_estimasi_mulai' => $antrean->waktu_estimasi_mulai,
+                    'status' => $antrean->status,
+                    'created_at' => now()->toDateTimeString(),
+                ]);
+            } catch (\Throwable $e) {}
+
+            $this->showWalkInModal = false;
+            $this->reset(['walkInName', 'walkInLayanan', 'walkInTime']);
+
+            session()->flash('sync_success', 'Antrean Walk-In berhasil ditambahkan ke daftar job Anda! Nomor Antrean: ' . $antrean->nomor_antrean);
+        } catch (\Throwable $e) {
+            $this->addError('walkInName', 'Gagal menambahkan antrean: ' . $e->getMessage());
+        }
     }
 
     public function with()
@@ -129,6 +227,13 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
             'orders' => $orders,
             'today' => $today,
             'tomorrow' => $tomorrow,
+            'layanans' => Layanan::where('is_active', true)->get(),
+            'timeSlots' => [
+                '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', 
+                '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
+                '15:00', '15:30', '16:00', '16:30', '17:00', '17:30',
+                '18:00', '18:30', '19:00', '19:30', '20:00'
+            ],
         ];
     }
 };
@@ -451,10 +556,10 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
                         <span>Aksi Cepat Kapster</span>
                     </h3>
 
-                    <a href="{{ route('admin.antrean', ['action' => 'walkin']) }}" class="w-full bg-primary/10 border-2 border-dashed border-primary/50 text-primary px-4 py-3.5 rounded-xl font-bold text-xs hover:bg-primary/20 hover:border-primary transition-all flex items-center justify-center gap-2">
+                    <button type="button" wire:click="openWalkInModal" class="w-full bg-primary/10 border-2 border-dashed border-primary/50 text-primary px-4 py-3.5 rounded-xl font-bold text-xs hover:bg-primary/20 hover:border-primary transition-all flex items-center justify-center gap-2 cursor-pointer">
                         <span class="material-symbols-outlined text-lg">person_add</span>
                         <span>Input Pelanggan Walk-In</span>
-                    </a>
+                    </button>
 
                     <div class="w-full h-px bg-outline-variant/30 my-1"></div>
 
@@ -499,4 +604,84 @@ new #[Layout('components.layouts.admin')] #[Title('Dashboard Kapster - Ran Cukur
             </aside>
         </div>
     </div>
+
+    <!-- Walk-In Modal untuk Kapster -->
+    @if($showWalkInModal)
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+            <div class="w-full max-w-lg bg-surface-container-high rounded-2xl shadow-2xl overflow-hidden border border-outline-variant/40 animate-[scale-up_0.2s_ease-out]">
+                <!-- Header -->
+                <div class="flex items-center justify-between p-5 bg-surface-container-highest border-b border-outline-variant/30">
+                    <div class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary text-xl">person_add</span>
+                        <h2 class="font-bold text-lg text-on-surface">Tambah Antrean Walk-In (Job Anda)</h2>
+                    </div>
+                    <button wire:click="$set('showWalkInModal', false)" class="text-on-surface-variant hover:text-primary transition-colors focus:outline-none cursor-pointer">
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+                <!-- Body -->
+                <div class="p-5 space-y-4">
+                    <!-- Customer Name -->
+                    <div class="space-y-1.5">
+                        <label class="block text-xs uppercase font-bold text-on-surface-variant tracking-wider">Nama Pelanggan Walk-In</label>
+                        <input wire:model="walkInName" class="w-full bg-surface-container text-on-surface text-sm px-4 py-2.5 rounded-xl border border-outline-variant/40 focus:outline-none focus:border-primary transition-colors" placeholder="Masukkan nama pelanggan..." type="text">
+                        @error('walkInName') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
+                    </div>
+                    <!-- Service & Barber Row -->
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="space-y-1.5">
+                            <label class="block text-xs uppercase font-bold text-on-surface-variant tracking-wider">Layanan</label>
+                            <select wire:model="walkInLayanan" class="w-full bg-surface-container text-on-surface text-sm px-3.5 py-2.5 rounded-xl border border-outline-variant/40 focus:outline-none focus:border-primary transition-colors">
+                                <option value="">Pilih Layanan</option>
+                                @foreach($layanans as $l)
+                                    <option value="{{ $l->id }}">{{ $l->nama_layanan }}</option>
+                                @endforeach
+                            </select>
+                            @error('walkInLayanan') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
+                        </div>
+                        <div class="space-y-1.5">
+                            <label class="block text-xs uppercase font-bold text-on-surface-variant tracking-wider">Kapster Bertugas</label>
+                            <div class="w-full bg-surface-container text-on-surface text-sm px-4 py-2.5 rounded-xl border border-outline-variant/40 flex items-center justify-between">
+                                <span class="truncate">{{ auth()->user()->nama }}</span>
+                                <span class="text-xs text-primary font-bold shrink-0">(Anda)</span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Time Slot Grid -->
+                    <div class="space-y-2 pt-2">
+                        <label class="block text-xs uppercase font-bold text-on-surface-variant tracking-wider">Pilih Jam</label>
+                        <div class="grid grid-cols-4 gap-2">
+                            <label class="cursor-pointer col-span-2" wire:click="setWalkInTimeNow">
+                                <input wire:model="walkInTime" value="{{ now()->format('H:i:s') }}" class="peer sr-only" type="radio">
+                                <div class="py-2 rounded-lg border border-outline-variant/30 bg-surface-container text-on-surface text-center hover:bg-surface-container-high transition-colors text-xs font-mono peer-checked:border-primary peer-checked:bg-primary/15 peer-checked:text-primary font-bold flex items-center justify-center gap-1">
+                                    <span class="material-symbols-outlined text-sm">schedule</span>
+                                    <span>Sekarang ({{ now()->format('H:i') }})</span>
+                                </div>
+                            </label>
+                            @foreach($timeSlots as $time)
+                                <label class="cursor-pointer">
+                                    <input wire:model="walkInTime" value="{{ $time }}" class="peer sr-only" type="radio">
+                                    <div class="py-2 rounded-lg border border-outline-variant/30 bg-surface-container text-on-surface text-center hover:bg-surface-container-high transition-colors text-xs font-mono peer-checked:border-primary peer-checked:bg-primary/15 peer-checked:text-primary font-bold">
+                                        {{ $time }}
+                                    </div>
+                                </label>
+                            @endforeach
+                        </div>
+                        @error('walkInTime') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
+                    </div>
+                </div>
+                <!-- Footer -->
+                <div class="p-5 bg-surface-container-highest border-t border-outline-variant/30 flex items-center justify-end gap-3">
+                    <button wire:click="$set('showWalkInModal', false)" type="button" class="px-4 py-2 text-xs font-semibold text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer">
+                        Batal
+                    </button>
+                    <button wire:click="saveWalkIn" wire:loading.attr="disabled" type="button" class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold rounded-xl hover:bg-primary-fixed transition-all flex items-center gap-1.5 shadow-md shadow-primary/20 cursor-pointer">
+                        <span wire:loading.remove wire:target="saveWalkIn" class="material-symbols-outlined text-[16px]">check</span>
+                        <span wire:loading wire:target="saveWalkIn" class="material-symbols-outlined text-[16px] animate-spin">refresh</span>
+                        <span>Simpan Antrean</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    @endif
 </div>

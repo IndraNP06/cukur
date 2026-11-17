@@ -48,8 +48,12 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
         } else {
             $this->walkInKapster = 'any';
         }
-        $this->walkInTime = Carbon::now()->format('H:i:s');
+        $this->walkInTime = now()->format('H:i:s');
         $this->showWalkInModal = true;
+    }
+
+    public function setWalkInTimeNow() {
+        $this->walkInTime = now()->format('H:i:s');
     }
 
     public function syncFromSheets() {
@@ -98,7 +102,7 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
         }
 
         if (empty($this->walkInTime)) {
-            $this->walkInTime = Carbon::now()->format('H:i:s');
+            $this->walkInTime = now()->format('H:i:s');
         }
 
         $this->validate([
@@ -120,9 +124,19 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
                 $user->assignRole('Pelanggan');
             } catch (\Throwable $e) {}
 
+            try {
+                app(\App\Services\GoogleSheetsService::class)->appendRow('pengguna', [
+                    'id' => $user->id,
+                    'nama' => $user->nama,
+                    'email' => $user->email,
+                    'role' => 'Pelanggan',
+                    'created_at' => now()->toDateTimeString(),
+                ]);
+            } catch (\Throwable $e) {}
+
             $kapsterId = $this->walkInKapster;
             if ($kapsterId === 'any' || empty($kapsterId)) {
-                $kapster = User::whereHas('roles', function($q){$q->where('name', 'Kapster');})->inRandomOrder()->first();
+                $kapster = User::where('role', 'Kapster')->orWhereHas('roles', function($q){$q->where('name', 'Kapster');})->inRandomOrder()->first();
                 if (!$kapster) {
                     $this->addError('walkInKapster', 'Mohon maaf, saat ini tidak ada kapster yang tersedia.');
                     return;
@@ -130,9 +144,9 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
                 $kapsterId = $kapster->id;
             }
 
-            $tanggalWalkIn = Carbon::today()->format('Y-m-d');
+            $tanggalWalkIn = now()->format('Y-m-d');
             if ($this->filterTanggal === 'tomorrow') {
-                $tanggalWalkIn = Carbon::tomorrow()->format('Y-m-d');
+                $tanggalWalkIn = now()->addDay()->format('Y-m-d');
             } elseif ($this->filterTanggal === 'custom' && !empty($this->customTanggal)) {
                 $tanggalWalkIn = $this->customTanggal;
             }
@@ -270,6 +284,12 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
     <!-- Top Control Bar -->
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
+            @if($isKapster)
+                <a href="{{ route('staff.dashboard') }}" class="inline-flex items-center gap-1.5 text-xs font-semibold text-on-surface-variant hover:text-primary transition-colors mb-2 group">
+                    <span class="material-symbols-outlined text-sm group-hover:-translate-x-1 transition-transform">arrow_back</span>
+                    <span>Kembali ke Dashboard Kapster</span>
+                </a>
+            @endif
             <div class="flex items-center gap-2 mb-1">
                 <h1 class="font-headline-lg text-on-surface text-2xl lg:text-3xl font-bold">
                     @if($isKapster)
@@ -636,11 +656,11 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
                     <div class="space-y-2 pt-2">
                         <label class="block text-xs uppercase font-bold text-on-surface-variant tracking-wider">Pilih Jam</label>
                         <div class="grid grid-cols-4 gap-2">
-                            <label class="cursor-pointer col-span-2">
-                                <input wire:model="walkInTime" value="{{ Carbon\Carbon::now()->format('H:i:s') }}" class="peer sr-only" type="radio">
+                            <label class="cursor-pointer col-span-2" wire:click="setWalkInTimeNow">
+                                <input wire:model="walkInTime" value="{{ now()->format('H:i:s') }}" class="peer sr-only" type="radio">
                                 <div class="py-2 rounded-lg border border-outline-variant/30 bg-surface-container text-on-surface text-center hover:bg-surface-container-high transition-colors text-xs font-mono peer-checked:border-primary peer-checked:bg-primary/15 peer-checked:text-primary font-bold flex items-center justify-center gap-1">
                                     <span class="material-symbols-outlined text-sm">schedule</span>
-                                    <span>Sekarang ({{ Carbon\Carbon::now()->format('H:i') }})</span>
+                                    <span>Sekarang ({{ now()->format('H:i') }})</span>
                                 </div>
                             </label>
                             @foreach($timeSlots as $time)
