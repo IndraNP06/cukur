@@ -24,7 +24,8 @@ class GoogleSheetsService
         'galeris',
         'banners',
         'faqs',
-        'voucher'
+        'voucher',
+        'ulasan'
     ];
 
     public function __construct()

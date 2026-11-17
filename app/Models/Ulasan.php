@@ -19,4 +19,8 @@ class Ulasan extends Model
     public function kapster() {
         return $this->belongsTo(User::class, 'kapster_id');
     }
+
+    public function getUlasanAttribute() {
+        return $this->komentar;
+    }
 }

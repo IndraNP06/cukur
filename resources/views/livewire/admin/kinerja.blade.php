@@ -277,7 +277,7 @@ new #[Layout('components.layouts.admin')] #[Title('Laporan Kinerja - Ran CukurIn
  </div>
  <span class="font-label-sm text-label-sm text-on-surface-variant">{{ $ulasan->created_at->diffForHumans() }}</span>
  </div>
- <p class="font-body-md text-body-md text-on-surface italic">"{{ $ulasan->ulasan ?? 'Tidak ada komentar.' }}"</p>
+ <p class="font-body-md text-body-md text-on-surface italic">"{{ $ulasan->komentar ?: ($ulasan->ulasan ?: 'Tidak ada komentar.') }}"</p>
  <div class="flex items-center gap-3 mt-auto pt-4 border-t border-surface-container-highest">
  <div class="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center font-label-sm text-label-sm text-on-secondary-container">
  {{ substr(optional($ulasan->pelanggan)->nama ?? 'A', 0, 1) }}

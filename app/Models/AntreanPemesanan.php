@@ -22,6 +22,9 @@ class AntreanPemesanan extends Model
     public function detailTransaksi() {
         return $this->hasOne(Transaksi::class, 'antrean_id');
     }
+    public function ulasan() {
+        return $this->hasOne(Ulasan::class, 'antrean_id');
+    }
 
     /**
      * Hitung sisa antrean yang berada di depan antrean ini.

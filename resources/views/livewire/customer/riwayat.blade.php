@@ -11,6 +11,16 @@ new #[Layout('components.layouts.admin')] #[Title('Riwayat Transaksi - Ran Cukur
  
  public $filter = 'Semua';
 
+ public function mount()
+ {
+     try {
+         if (auth()->check() && !cache()->has('sheets_sync_ulasan_customer_' . auth()->id())) {
+             app(\App\Services\GoogleSheetsService::class)->pullTable('ulasan');
+             cache()->put('sheets_sync_ulasan_customer_' . auth()->id(), true, now()->addSeconds(15));
+         }
+     } catch (\Throwable $e) {}
+ }
+
  public function setFilter($filter)
  {
  $this->filter = $filter;
@@ -19,7 +29,7 @@ new #[Layout('components.layouts.admin')] #[Title('Riwayat Transaksi - Ran Cukur
 
  public function with()
  {
- $query = AntreanPemesanan::with(['layanan', 'kapster', 'detailTransaksi'])
+ $query = AntreanPemesanan::with(['layanan', 'kapster', 'detailTransaksi', 'ulasan'])
  ->where('pelanggan_id', auth()->id())
  ->orderBy('tanggal', 'desc')
  ->orderBy('created_at', 'desc');
@@ -72,6 +82,13 @@ new #[Layout('components.layouts.admin')] #[Title('Riwayat Transaksi - Ran Cukur
  </div>
  </div>
  
+ @if(session()->has('message'))
+ <div class="mb-6 p-4 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center gap-3">
+     <span class="material-symbols-outlined text-xl">check_circle</span>
+     <span class="font-body-md text-sm font-medium">{{ session('message') }}</span>
+ </div>
+ @endif
+
  <!-- Filter Tabs -->
  <div class="flex overflow-x-auto gap-3 pb-4 mb-8 -mx-margin-mobile px-margin-mobile lg:mx-0 lg:px-0 scrollbar-hide">
  @foreach(['Semua', 'Menunggu', 'Diproses', 'Selesai', 'Batal'] as $f)
@@ -123,10 +140,30 @@ new #[Layout('components.layouts.admin')] #[Title('Riwayat Transaksi - Ran Cukur
  </div>
  </div>
  <div class="flex-shrink-0 flex flex-row md:flex-col items-center md:items-end justify-between w-full md:w-auto mt-4 md:mt-0 relative z-10 border-t border-surface-variant/50 pt-4 md:border-t-0 md:pt-0">
+ @if($item->ulasan)
+ <div class="flex flex-col items-start md:items-end gap-1.5 w-full md:w-auto">
+     <div class="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-xl">
+         <div class="flex items-center text-amber-400">
+             @for($i = 1; $i <= 5; $i++)
+                 <span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' {{ $item->ulasan->rating >= $i ? 1 : 0 }};">star</span>
+             @endfor
+         </div>
+         <span class="font-label-sm text-xs font-bold text-amber-400">{{ $item->ulasan->rating }}.0</span>
+     </div>
+     @if($item->ulasan->komentar)
+         <p class="font-body-sm text-xs text-on-surface-variant italic max-w-xs text-left md:text-right line-clamp-2">"{{ $item->ulasan->komentar }}"</p>
+     @endif
+     <a href="{{ route('customer.ulasan', $item->id) }}" class="text-[11px] font-semibold text-primary hover:underline flex items-center gap-1 mt-0.5">
+         <span class="material-symbols-outlined text-[13px]">edit</span>
+         Ubah Ulasan
+     </a>
+ </div>
+ @else
  <a href="{{ route('customer.ulasan', $item->id) }}" class="px-4 lg:px-5 py-2.5 rounded-lg font-label-md text-label-md text-primary bg-primary/10 hover:bg-primary hover:text-on-primary transition-colors flex items-center gap-2">
  <span class="material-symbols-outlined text-[18px]">star_rate</span>
  Beri Ulasan
  </a>
+ @endif
  </div>
  </div>
  @elseif($item->status === 'Menunggu' || $item->status === 'Diproses')

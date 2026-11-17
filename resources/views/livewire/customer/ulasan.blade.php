@@ -10,6 +10,7 @@ new #[Layout('components.layouts.admin')] #[Title('Nilai Pengalaman Anda - Ran C
  public int $rating_layanan = 0;
  public int $rating_suasana = 0;
  public string $ulasan = '';
+ public bool $isEdit = false;
  
  public function mount($id)
  {
@@ -22,6 +23,15 @@ new #[Layout('components.layouts.admin')] #[Title('Nilai Pengalaman Anda - Ran C
  if ($this->pemesanan->status !== 'Selesai') {
  session()->flash('message', 'Anda hanya dapat memberikan ulasan untuk transaksi yang sudah selesai.');
  $this->redirect(route('customer.riwayat'), navigate: true);
+ return;
+ }
+
+ $existing = \App\Models\Ulasan::where('antrean_id', $this->pemesanan->id)->first();
+ if ($existing) {
+ $this->isEdit = true;
+ $this->rating_layanan = $existing->rating;
+ $this->rating_suasana = $existing->rating;
+ $this->ulasan = $existing->komentar ?? '';
  }
  }
  
@@ -43,17 +53,32 @@ new #[Layout('components.layouts.admin')] #[Title('Nilai Pengalaman Anda - Ran C
  'ulasan' => 'nullable|string|max:500'
  ]);
 
- // Simpan ke database
- \App\Models\Ulasan::create([
- 'antrean_id' => $this->pemesanan->id,
+ try {
+ $calculatedRating = (int) round(($this->rating_layanan + $this->rating_suasana) / 2);
+
+ \App\Models\Ulasan::updateOrCreate(
+ ['antrean_id' => $this->pemesanan->id],
+ [
  'pelanggan_id' => $this->pemesanan->pelanggan_id,
- 'kapster_id' => $this->pemesanan->kapster_id,
- 'rating' => round(($this->rating_layanan + $this->rating_suasana) / 2),
+ 'kapster_id' => $this->pemesanan->kapster_id ?? 1,
+ 'rating' => $calculatedRating,
  'komentar' => $this->ulasan,
- ]);
+ ]
+ );
+
+ try {
+ app(\App\Services\GoogleSheetsService::class)->syncTable('ulasan');
+ } catch (\Throwable $e) {}
+
+ if (auth()->check()) {
+ cache()->forget('sheets_sync_ulasan_customer_' . auth()->id());
+ }
  
- session()->flash('message', 'Terima kasih! Ulasan Anda telah berhasil dikirim.');
+ session()->flash('message', 'Terima kasih! Ulasan Anda telah berhasil disimpan dan disinkronkan ke Google Spreadsheet.');
  $this->redirect(route('customer.riwayat'), navigate: true);
+ } catch (\Throwable $e) {
+ $this->addError('ulasan', 'Gagal menyimpan ulasan: ' . $e->getMessage());
+ }
  }
 };
 ?>
@@ -147,7 +172,7 @@ new #[Layout('components.layouts.admin')] #[Title('Nilai Pengalaman Anda - Ran C
  Batal
  </a>
  <button type="submit" class="w-full sm:w-auto bg-primary text-on-primary px-5 lg:px-5 py-3.5 rounded-full font-label-md text-label-md uppercase tracking-wider hover:scale-105 transition-transform flex items-center justify-center gap-2 shadow-lg shadow-primary/20">
- <span>Kirim Ulasan</span>
+ <span>{{ $isEdit ? 'Perbarui Ulasan' : 'Kirim Ulasan' }}</span>
  <span class="material-symbols-outlined text-[20px]">check</span>
  </button>
  </div>
