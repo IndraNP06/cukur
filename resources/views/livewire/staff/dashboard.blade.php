@@ -45,11 +45,6 @@ new #[Layout('components.layouts.admin')]
             $antrean->status = 'Diproses';
             $antrean->waktu_mulai_aktual = now()->format('H:i:s');
             $antrean->save();
-
-            try {
-                app(\App\Services\GoogleSheetsService::class)->syncTable('antrean_pemesanan');
-            } catch (\Throwable $e) {
-            }
         }
     }
 
@@ -60,11 +55,6 @@ new #[Layout('components.layouts.admin')]
             $antrean->status = 'Selesai';
             $antrean->waktu_selesai_aktual = now()->format('H:i:s');
             $antrean->save();
-
-            try {
-                app(\App\Services\GoogleSheetsService::class)->syncTable('antrean_pemesanan');
-            } catch (\Throwable $e) {
-            }
         }
     }
 

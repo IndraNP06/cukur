@@ -73,6 +73,13 @@ class GoogleSheetsSyncObserver
 
         $table = self::$tableMap[$class];
 
+        // Cegah sinkronisasi tabel besar (ribuan baris seperti antrean dan transaksi) secara sinkron pada request HTTP/Livewire
+        // karena mengirim 5.700+ baris via HTTP memakan waktu 10-20 detik dan memblokir respon UI.
+        // Sinkronisasi tabel besar dilakukan via tombol 'Sinkron Spreadsheet' atau artisan sheets:sync.
+        if (in_array($table, ['antrean_pemesanan', 'transaksi'])) {
+            return;
+        }
+
         try {
             /** @var GoogleSheetsService $service */
             $service = app(GoogleSheetsService::class);

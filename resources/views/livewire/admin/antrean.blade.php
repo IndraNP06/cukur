@@ -95,10 +95,6 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
             $antrean->status = 'Diproses';
             $antrean->waktu_mulai_aktual = Carbon::now()->format('H:i:s');
             $antrean->save();
-
-            try {
-                app(\App\Services\GoogleSheetsService::class)->syncTable('antrean_pemesanan');
-            } catch (\Throwable $e) {}
         }
     }
 
@@ -115,10 +111,6 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
             $antrean->status = 'Selesai';
             $antrean->waktu_selesai_aktual = Carbon::now()->format('H:i:s');
             $antrean->save();
-
-            try {
-                app(\App\Services\GoogleSheetsService::class)->syncTable('antrean_pemesanan');
-            } catch (\Throwable $e) {}
         }
     }
 

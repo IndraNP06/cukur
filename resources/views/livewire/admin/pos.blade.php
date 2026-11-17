@@ -288,11 +288,9 @@ new #[Layout('components.layouts.admin')] #[Title('Sistem POS - Ran Cukurin')] c
 
  DB::commit();
 
- // Sinkronisasi otomatis ke Google Spreadsheet
+ // Sinkronisasi otomatis ke Google Spreadsheet (hanya tabel barang)
  try {
  $sheets = app(\App\Services\GoogleSheetsService::class);
- $sheets->syncTable('transaksi');
- $sheets->syncTable('antrean_pemesanan');
  $sheets->syncTable('barang');
  } catch (\Throwable $e) {}
  
