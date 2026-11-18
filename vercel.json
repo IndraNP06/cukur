@@ -31,8 +31,10 @@
     }
   ],
   "env": {
+    "APP_NAME": "Ran Cukurin",
     "APP_ENV": "production",
     "APP_DEBUG": "false",
+    "APP_KEY": "base64:ea4gc68jTY4Ac58SALsY+pkie7roj2us2xqOyMjooPA=",
     "ASSET_URL": "/",
     "APP_STORAGE": "/tmp/storage",
     "APP_CONFIG_CACHE": "/tmp/config.php",
