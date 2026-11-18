@@ -110,6 +110,47 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
+    if (action === "update_row") {
+      var sheet = getOrCreateSheet(ss, tableName);
+      var id = payload.id;
+      var data = payload.data || {};
+      var lastRow = sheet.getLastRow();
+
+      if (lastRow > 1) {
+        var lastCol = sheet.getLastColumn();
+        var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+        var idColIdx = headers.indexOf("id");
+
+        if (idColIdx !== -1) {
+          var idValues = sheet.getRange(2, idColIdx + 1, lastRow - 1, 1).getValues();
+          for (var r = 0; r < idValues.length; r++) {
+            if (String(idValues[r][0]) === String(id)) {
+              var rowIndex = r + 2;
+              for (var key in data) {
+                var cIdx = headers.indexOf(key);
+                if (cIdx !== -1) {
+                  var cellVal = data[key];
+                  if (typeof cellVal === "object" && cellVal !== null) {
+                    cellVal = JSON.stringify(cellVal);
+                  }
+                  sheet.getRange(rowIndex, cIdx + 1).setValue(cellVal);
+                }
+              }
+              return ContentService.createTextOutput(JSON.stringify({
+                success: true,
+                message: "Baris ID " + id + " berhasil diperbarui di " + tableName
+              })).setMimeType(ContentService.MimeType.JSON);
+            }
+          }
+        }
+      }
+
+      return ContentService.createTextOutput(JSON.stringify({
+        success: false,
+        message: "ID " + id + " tidak ditemukan di " + tableName
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
     return ContentService.createTextOutput(JSON.stringify({
       success: false,
       message: "Action tidak dikenali"

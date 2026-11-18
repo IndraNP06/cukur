@@ -303,6 +303,34 @@ class GoogleSheetsService
     }
 
     /**
+     * Perbarui baris tertentu di Google Sheet berdasarkan ID (Sangat cepat <500ms)
+     */
+    public function updateRow(string $table, $id, array $data): array
+    {
+        if (empty($this->webhookUrl)) {
+            return ['success' => false, 'message' => 'GOOGLE_SHEETS_WEBHOOK_URL belum diset'];
+        }
+
+        try {
+            unset($data['password'], $data['remember_token']);
+            $response = Http::withoutVerifying()->timeout(5)->post($this->webhookUrl, [
+                'action' => 'update_row',
+                'table'  => $table,
+                'id'     => $id,
+                'data'   => $data,
+            ]);
+
+            return [
+                'success'  => $response->successful(),
+                'response' => $response->json() ?? $response->body()
+            ];
+        } catch (\Throwable $e) {
+            Log::warning("Google Sheets UpdateRow Warning [$table]: " . $e->getMessage());
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
      * Sinkronkan tabel lokal ke Google Sheet (Push)
      */
     public function syncTable(string $table, ?array $customColumns = null): array

@@ -53,6 +53,27 @@ class GoogleSheetsSyncObserver
      */
     public function updated(Model $model): void
     {
+        $class = get_class($model);
+        if (!isset(self::$tableMap[$class])) {
+            return;
+        }
+
+        $table = self::$tableMap[$class];
+
+        // Untuk tabel antrean_pemesanan, gunakan updateRow yang sangat cepat (<500ms) untuk memperbarui hanya baris tersebut
+        if ($table === 'antrean_pemesanan') {
+            try {
+                $data = $model->getAttributes();
+                unset($data['password'], $data['remember_token']);
+                /** @var GoogleSheetsService $service */
+                $service = app(GoogleSheetsService::class);
+                $service->updateRow($table, $model->getKey(), $data);
+            } catch (\Throwable $e) {
+                Log::warning("Error updateRow to Google Sheets [$table]: " . $e->getMessage());
+            }
+            return;
+        }
+
         $this->syncWholeTable($model);
     }
 

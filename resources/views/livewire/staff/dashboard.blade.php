@@ -38,10 +38,26 @@ new #[Layout('components.layouts.admin')]
         }
     }
 
+    public function isOwner(): bool
+    {
+        if (!auth()->check()) return false;
+        $user = auth()->user();
+        if (in_array((int)$user->id, [1, 2])) return true;
+        $role = strtolower($user->role ?? '');
+        if (str_contains($role, 'pemilik') || str_contains($role, 'owner') || str_contains($role, 'admin')) {
+            return true;
+        }
+        if (method_exists($user, 'hasRole')) {
+            return $user->hasRole('Pemilik') || $user->hasRole('Admin') || $user->hasRole('Owner');
+        }
+        return false;
+    }
+
     public function mulaiPengerjaan($id)
     {
         $antrean = AntreanPemesanan::find($id);
-        if ($antrean && $antrean->kapster_id === auth()->id() && $antrean->status === 'Menunggu') {
+        $canManage = $this->isOwner() || ((int)($antrean->kapster_id ?? 0) === (int)auth()->id());
+        if ($antrean && $canManage && $antrean->status === 'Menunggu') {
             $antrean->status = 'Diproses';
             $antrean->waktu_mulai_aktual = now()->format('H:i:s');
             $antrean->save();
@@ -51,7 +67,8 @@ new #[Layout('components.layouts.admin')]
     public function selesaiPengerjaanLangsung($id)
     {
         $antrean = AntreanPemesanan::find($id);
-        if ($antrean && $antrean->kapster_id === auth()->id() && $antrean->status === 'Diproses') {
+        $canManage = $this->isOwner() || ((int)($antrean->kapster_id ?? 0) === (int)auth()->id());
+        if ($antrean && $canManage && $antrean->status === 'Diproses') {
             $antrean->status = 'Selesai';
             $antrean->waktu_selesai_aktual = now()->format('H:i:s');
             $antrean->save();
