@@ -96,12 +96,19 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
             return;
         }
 
-        $antrean->status = 'Diproses';
-        if (empty($antrean->waktu_mulai_aktual)) {
-            $antrean->waktu_mulai_aktual = Carbon::now()->format('H:i:s');
-        }
-        $antrean->touch();
-        $antrean->save();
+        \Illuminate\Support\Facades\DB::transaction(function() use ($antrean) {
+            $nowTime = Carbon::now()->format('H:i:s');
+            $today = Carbon::today()->toDateString();
+            $antrean->status = 'Diproses';
+            if (empty($antrean->waktu_mulai_aktual)) {
+                $antrean->waktu_mulai_aktual = $nowTime;
+            }
+            if ($antrean->tanggal < $today) {
+                $antrean->tanggal = $today;
+            }
+            $antrean->touch();
+            $antrean->save();
+        }, 5);
 
         session()->flash('sync_success', 'Antrean #' . $antrean->nomor_antrean . ' berhasil mulai diproses!');
     }
@@ -118,13 +125,20 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
             return;
         }
 
-        $antrean->status = 'Selesai';
-        if (empty($antrean->waktu_mulai_aktual)) {
-            $antrean->waktu_mulai_aktual = Carbon::now()->format('H:i:s');
-        }
-        $antrean->waktu_selesai_aktual = Carbon::now()->format('H:i:s');
-        $antrean->touch();
-        $antrean->save();
+        \Illuminate\Support\Facades\DB::transaction(function() use ($antrean) {
+            $nowTime = Carbon::now()->format('H:i:s');
+            $today = Carbon::today()->toDateString();
+            $antrean->status = 'Selesai';
+            if (empty($antrean->waktu_mulai_aktual)) {
+                $antrean->waktu_mulai_aktual = $nowTime;
+            }
+            $antrean->waktu_selesai_aktual = $nowTime;
+            if ($antrean->tanggal < $today) {
+                $antrean->tanggal = $today;
+            }
+            $antrean->touch();
+            $antrean->save();
+        }, 5);
 
         session()->flash('sync_success', 'Antrean #' . $antrean->nomor_antrean . ' berhasil diselesaikan!');
     }
@@ -138,10 +152,12 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
             return;
         }
 
-        $antrean->status = 'Menunggu';
-        $antrean->waktu_mulai_aktual = null;
-        $antrean->touch();
-        $antrean->save();
+        \Illuminate\Support\Facades\DB::transaction(function() use ($antrean) {
+            $antrean->status = 'Menunggu';
+            $antrean->waktu_mulai_aktual = null;
+            $antrean->touch();
+            $antrean->save();
+        }, 5);
 
         session()->flash('sync_success', 'Antrean #' . $antrean->nomor_antrean . ' berhasil dikembalikan ke antrean Menunggu.');
     }
@@ -289,41 +305,48 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
             ];
         }
 
-        $query = AntreanPemesanan::with(['pelanggan', 'kapster', 'layanan']);
-
-        // Filter Tanggal
-        if ($this->filterTanggal === 'today') {
-            $query->whereDate('tanggal', $today);
-        } elseif ($this->filterTanggal === 'tomorrow') {
-            $query->whereDate('tanggal', $tomorrow);
-        } elseif ($this->filterTanggal === 'all') {
-            // Tampilkan semua antrean aktif (Menunggu & Diproses), atau tanggal hari ini, atau yang baru diperbarui hari ini
-            $query->where(function($q) use ($today) {
-                $q->whereIn('status', ['Menunggu', 'Diproses'])
-                  ->orWhereDate('tanggal', $today)
-                  ->orWhereDate('updated_at', $today);
-            });
-        } elseif ($this->filterTanggal === 'history') {
-            // Semua tanpa filter tanggal
-        } elseif ($this->filterTanggal === 'custom' && !empty($this->customTanggal)) {
-            $query->whereDate('tanggal', $this->customTanggal);
-        }
+        $baseQuery = AntreanPemesanan::with(['pelanggan', 'kapster', 'layanan']);
 
         // Filter Kapster
         if ($this->filterKapster !== 'all') {
-            $query->where('kapster_id', $this->filterKapster);
+            $baseQuery->where('kapster_id', $this->filterKapster);
         }
 
-        $semuaAntrean = $query->orderBy('tanggal', 'asc')->orderBy('waktu_estimasi_mulai', 'asc')->get();
-        $selesaiAll = $semuaAntrean->where('status', 'Selesai');
-        $totalSelesaiCount = $selesaiAll->count();
-        // Urutkan antrean selesai berdasarkan yang paling baru diselesaikan (updated_at desc), batasi 30 untuk rendering cepat
-        $selesai = $selesaiAll->sortByDesc('updated_at')->take(30);
+        // 1. Sedang Diproses: selalu tampilkan antrean yang sedang aktif dikerjakan
+        $diproses = (clone $baseQuery)
+            ->where('status', 'Diproses')
+            ->orderByDesc('updated_at')
+            ->get();
 
-        $menungguAll = $semuaAntrean->where('status', 'Menunggu');
-        $totalMenungguCount = $menungguAll->count();
-        // Batasi 30 antrean menunggu terdekat untuk rendering DOM cepat dan mulus
-        $menunggu = $menungguAll->take(30);
+        // 2. Menunggu Giliran:
+        $menungguQuery = (clone $baseQuery)->where('status', 'Menunggu');
+        if ($this->filterTanggal === 'today') {
+            $menungguQuery->where(function($q) use ($today) {
+                $q->whereDate('tanggal', '<=', $today)->orWhereNull('tanggal');
+            });
+        } elseif ($this->filterTanggal === 'tomorrow') {
+            $menungguQuery->whereDate('tanggal', $tomorrow);
+        } elseif ($this->filterTanggal === 'custom' && !empty($this->customTanggal)) {
+            $menungguQuery->whereDate('tanggal', $this->customTanggal);
+        }
+
+        $totalMenungguCount = $menungguQuery->count();
+        $menunggu = $menungguQuery->orderBy('tanggal', 'asc')->orderBy('waktu_estimasi_mulai', 'asc')->take(30)->get();
+
+        // 3. Selesai:
+        $selesaiQuery = (clone $baseQuery)->where('status', 'Selesai');
+        if ($this->filterTanggal === 'today' || $this->filterTanggal === 'all') {
+            $selesaiQuery->where(function($q) use ($today) {
+                $q->whereDate('tanggal', $today)->orWhereDate('updated_at', $today);
+            });
+        } elseif ($this->filterTanggal === 'tomorrow') {
+            $selesaiQuery->whereDate('tanggal', $tomorrow);
+        } elseif ($this->filterTanggal === 'custom' && !empty($this->customTanggal)) {
+            $selesaiQuery->whereDate('tanggal', $this->customTanggal);
+        }
+
+        $totalSelesaiCount = $selesaiQuery->count();
+        $selesai = $selesaiQuery->orderByDesc('updated_at')->take(30)->get();
 
         return [
             'isKapster' => $isKapster,
@@ -333,7 +356,7 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
             'layanans' => Layanan::where('is_active', true)->get(),
             'menunggu' => $menunggu,
             'totalMenungguCount' => $totalMenungguCount,
-            'diproses' => $semuaAntrean->where('status', 'Diproses'),
+            'diproses' => $diproses,
             'selesai' => $selesai,
             'totalSelesaiCount' => $totalSelesaiCount,
             'today' => $today,
@@ -349,7 +372,7 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
 };
 ?>
 
-<div class="flex flex-col w-full h-full min-h-full space-y-6" wire:poll.5s>
+<div class="flex flex-col w-full h-full min-h-full space-y-6" wire:poll.visible.10s>
     <!-- Top Control Bar -->
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
