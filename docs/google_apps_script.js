@@ -126,16 +126,20 @@ function doPost(e) {
           for (var r = 0; r < idValues.length; r++) {
             if (String(idValues[r][0]) === String(id)) {
               var rowIndex = r + 2;
+              var rowValues = sheet.getRange(rowIndex, 1, 1, lastCol).getValues()[0];
               for (var key in data) {
                 var cIdx = headers.indexOf(key);
                 if (cIdx !== -1) {
                   var cellVal = data[key];
-                  if (typeof cellVal === "object" && cellVal !== null) {
+                  if (cellVal === null || cellVal === undefined) {
+                    cellVal = "";
+                  } else if (typeof cellVal === "object") {
                     cellVal = JSON.stringify(cellVal);
                   }
-                  sheet.getRange(rowIndex, cIdx + 1).setValue(cellVal);
+                  rowValues[cIdx] = cellVal;
                 }
               }
+              sheet.getRange(rowIndex, 1, 1, lastCol).setValues([rowValues]);
               return ContentService.createTextOutput(JSON.stringify({
                 success: true,
                 message: "Baris ID " + id + " berhasil diperbarui di " + tableName
@@ -208,6 +212,7 @@ function doGet(e) {
     // Default status check
     return ContentService.createTextOutput(JSON.stringify({
       status: "online",
+      version: "2.1-update-row",
       spreadsheetName: ss.getName(),
       sheets: ss.getSheets().map(function(s) { return s.getName(); })
     })).setMimeType(ContentService.MimeType.JSON);
