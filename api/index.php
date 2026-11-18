@@ -48,9 +48,11 @@ putenv("DB_DATABASE={$sqlitePath}");
 $_ENV['DB_DATABASE'] = $sqlitePath;
 
 $bundledDb = __DIR__ . '/../database/database.sqlite';
+$copiedDb = false;
 if (!file_exists($sqlitePath) || filesize($sqlitePath) === 0) {
     if (file_exists($bundledDb) && filesize($bundledDb) > 0) {
         @copy($bundledDb, $sqlitePath);
+        $copiedDb = true;
     } else {
         @touch($sqlitePath);
         $freshSetupNeeded = true;
@@ -65,6 +67,15 @@ $app = require_once __DIR__ . '/../bootstrap/app.php';
 
 // Inisialisasi container & facade Laravel
 $app->make(ConsoleKernel::class)->bootstrap();
+
+// Jika database baru disalin dari bundle, segera tarik antrean aktif terbaru dari Google Sheets
+if ($copiedDb) {
+    try {
+        app(\App\Services\GoogleSheetsService::class)->pullActiveAntrean();
+    } catch (\Throwable $e) {
+        // Abaikan jika network timeout
+    }
+}
 
 // Jika bundled database belum ada, jalankan migrasi & sinkronisasi awal
 if (!empty($freshSetupNeeded)) {

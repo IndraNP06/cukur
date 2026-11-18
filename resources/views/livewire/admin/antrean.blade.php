@@ -281,6 +281,15 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
         $today = Carbon::today()->toDateString();
         $tomorrow = Carbon::tomorrow()->toDateString();
 
+        // Sinkronkan status antrean aktif langsung dari Google Sheets agar instan dan bebas rollback di multi-kontainer serverless
+        $lastSync = cache()->get('last_active_antrean_sync', 0);
+        if (time() - $lastSync >= 5) {
+            try {
+                app(\App\Services\GoogleSheetsService::class)->pullActiveAntrean();
+                cache()->put('last_active_antrean_sync', time(), 10);
+            } catch (\Throwable $e) {}
+        }
+
         // Ringkasan status kursi per kapster (untuk monitoring kerja setiap kapster)
         $kapsterSummary = [];
         foreach ($kapsters as $k) {

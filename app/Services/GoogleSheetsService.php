@@ -245,6 +245,71 @@ class GoogleSheetsService
     }
 
     /**
+     * Tarik hanya antrean aktif (Diproses dan antrean hari ini/kemarin) dari Google Sheets secara super cepat (<1s)
+     * Ini menjamin kontainer serverless selalu memiliki status antrean terbaru tanpa rollback.
+     */
+    public function pullActiveAntrean(): array
+    {
+        if (!$this->isConfigured()) {
+            return ['success' => false, 'message' => 'Google Sheets belum dikonfigurasi'];
+        }
+
+        $today = date('Y-m-d');
+        $yesterday = date('Y-m-d', strtotime('-1 day'));
+
+        $tq = "select * where K = 'Diproses' or G = date '{$today}' or (G = date '{$yesterday}' and (K = 'Diproses' or K = 'Selesai'))";
+        $url = "https://docs.google.com/spreadsheets/d/{$this->spreadsheetId}/gviz/tq?tqx=out:csv&sheet=antrean_pemesanan&tq=" . urlencode($tq);
+
+        try {
+            $response = Http::withoutVerifying()->timeout(5)->get($url);
+            if (!$response->successful()) {
+                return ['success' => false, 'message' => 'Gagal mengambil data dari Google Sheets'];
+            }
+
+            $csv = $response->body();
+            if (empty(trim($csv))) {
+                return ['success' => true, 'count' => 0];
+            }
+
+            $lines = explode("\n", trim($csv));
+            $headers = str_getcsv(array_shift($lines));
+            $headers = array_map(function($h) { return trim($h, " \t\n\r\0\x0B\""); }, $headers);
+            $availableColumns = $this->getTableColumns('antrean_pemesanan');
+            $validHeaders = array_intersect($headers, $availableColumns);
+
+            DB::beginTransaction();
+            $updated = 0;
+            foreach ($lines as $line) {
+                if (empty(trim($line))) continue;
+                $row = str_getcsv($line);
+                if (count($row) < count($headers)) {
+                    $row = array_pad($row, count($headers), '');
+                }
+                $record = [];
+                foreach ($headers as $idx => $colName) {
+                    if (in_array($colName, $validHeaders)) {
+                        $val = $row[$idx] ?? null;
+                        if ($val === '' || $val === 'null' || $val === 'NULL') {
+                            $val = null;
+                        }
+                        $record[$colName] = $val;
+                    }
+                }
+                if (!empty($record['id'])) {
+                    DB::table('antrean_pemesanan')->updateOrInsert(['id' => $record['id']], $record);
+                    $updated++;
+                }
+            }
+            DB::commit();
+
+            return ['success' => true, 'count' => $updated];
+        } catch (\Throwable $e) {
+            Log::warning("Error pullActiveAntrean: " . $e->getMessage());
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
      * Tarik seluruh tabel dari Google Sheets ke database lokal/serverless
      */
     public function pullAll(): array
