@@ -35,7 +35,7 @@ return [
         'sqlite' => [
             'driver' => 'sqlite',
             'url' => env('DB_URL'),
-            'database' => (!env('DB_DATABASE') || !str_contains(env('DB_DATABASE'), '.') || env('DB_DATABASE') === 'ran_cukurin_app')
+            'database' => (!env('DB_DATABASE') || !str_contains(env('DB_DATABASE'), '.') || env('DB_DATABASE') === 'ran_cukurin_app' || (PHP_OS_FAMILY === 'Windows' && str_starts_with(env('DB_DATABASE'), '/tmp')))
                 ? database_path('database.sqlite')
                 : env('DB_DATABASE', database_path('database.sqlite')),
             'prefix' => '',

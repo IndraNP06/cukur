@@ -21,6 +21,22 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
     public $walkInKapster = null;
     public $walkInTime = null;
 
+    // Reschedule Modal
+    public $showRescheduleModal = false;
+    public $rescheduleAntreanId = null;
+    public $rescheduleTanggal = '';
+    public $rescheduleTime = '';
+    public $rescheduleKapsterId = null;
+
+    // Cancel Modal
+    public $showCancelModal = false;
+    public $cancelAntreanId = null;
+    public $cancelAlasan = 'Pelanggan berhalangan hadir / No-Show';
+    public $customCancelAlasan = '';
+
+    // Active selected antrean detail for modals
+    public $activeSelectedAntrean = null;
+
     public function mount() {
         if (auth()->check() && (auth()->user()->role === 'Kapster' || (method_exists(auth()->user(), 'hasRole') && auth()->user()->hasRole('Kapster')))) {
             $this->filterKapster = (string)auth()->id();
@@ -172,6 +188,132 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
         }
 
         return redirect()->route('admin.pos', ['antrean_id' => $id]);
+    }
+
+    public function openRescheduleModal($id) {
+        $antrean = AntreanPemesanan::with(['pelanggan', 'layanan', 'kapster'])->find($id);
+        if (!$antrean) {
+            session()->flash('sync_error', 'Antrean tidak ditemukan.');
+            return;
+        }
+
+        if (!$this->canManageAntrean($antrean)) {
+            session()->flash('sync_error', 'Akses ditolak: Anda tidak memiliki wewenang untuk mengubah jadwal antrean ini.');
+            return;
+        }
+
+        $this->resetValidation();
+        $this->rescheduleAntreanId = $id;
+        $this->activeSelectedAntrean = $antrean;
+        $this->rescheduleTanggal = $antrean->tanggal ?? Carbon::today()->toDateString();
+        $this->rescheduleTime = substr($antrean->waktu_estimasi_mulai ?? '10:00:00', 0, 5);
+        $this->rescheduleKapsterId = $antrean->kapster_id;
+        $this->showRescheduleModal = true;
+    }
+
+    public function setRescheduleToday() {
+        $this->rescheduleTanggal = Carbon::today()->toDateString();
+    }
+
+    public function setRescheduleTomorrow() {
+        $this->rescheduleTanggal = Carbon::tomorrow()->toDateString();
+    }
+
+    public function saveReschedule() {
+        $this->validate([
+            'rescheduleTanggal' => 'required|date',
+            'rescheduleTime' => 'required',
+            'rescheduleKapsterId' => 'required|exists:users,id',
+        ], [
+            'rescheduleTanggal.required' => 'Tanggal baru wajib dipilih.',
+            'rescheduleTime.required' => 'Jam estimasi wajib dipilih.',
+            'rescheduleKapsterId.required' => 'Kapster bertugas wajib dipilih.',
+        ]);
+
+        $antrean = AntreanPemesanan::find($this->rescheduleAntreanId);
+        if (!$antrean) {
+            session()->flash('sync_error', 'Antrean tidak ditemukan.');
+            $this->showRescheduleModal = false;
+            return;
+        }
+
+        if (!$this->canManageAntrean($antrean)) {
+            session()->flash('sync_error', 'Akses ditolak: Anda tidak memiliki wewenang untuk mengubah jadwal antrean ini.');
+            $this->showRescheduleModal = false;
+            return;
+        }
+
+        \Illuminate\Support\Facades\DB::transaction(function() use ($antrean) {
+            $antrean->tanggal = $this->rescheduleTanggal;
+            $antrean->waktu_estimasi_mulai = $this->rescheduleTime;
+            $antrean->kapster_id = $this->rescheduleKapsterId;
+            $antrean->status = 'Menunggu';
+            $antrean->waktu_mulai_aktual = null;
+            $antrean->touch();
+            $antrean->save();
+        }, 5);
+
+        $this->showRescheduleModal = false;
+        $nomor = $antrean->nomor_antrean;
+        $this->reset(['rescheduleAntreanId', 'activeSelectedAntrean']);
+        session()->flash('sync_success', 'Jadwal antrean #' . $nomor . ' berhasil diubah ke ' . $this->rescheduleTanggal . ' pukul ' . $this->rescheduleTime . ' WIB!');
+    }
+
+    public function openCancelModal($id) {
+        $antrean = AntreanPemesanan::with(['pelanggan', 'layanan', 'kapster'])->find($id);
+        if (!$antrean) {
+            session()->flash('sync_error', 'Antrean tidak ditemukan.');
+            return;
+        }
+
+        if (!$this->canManageAntrean($antrean)) {
+            session()->flash('sync_error', 'Akses ditolak: Anda tidak memiliki wewenang untuk membatalkan antrean ini.');
+            return;
+        }
+
+        $this->resetValidation();
+        $this->cancelAntreanId = $id;
+        $this->activeSelectedAntrean = $antrean;
+        $this->cancelAlasan = 'Pelanggan berhalangan hadir / No-Show';
+        $this->customCancelAlasan = '';
+        $this->showCancelModal = true;
+    }
+
+    public function confirmCancel() {
+        if ($this->cancelAlasan === 'Lainnya') {
+            $this->validate([
+                'customCancelAlasan' => 'required|string|min:3|max:255',
+            ], [
+                'customCancelAlasan.required' => 'Mohon tuliskan alasan pembatalan.',
+            ]);
+        }
+
+        $antrean = AntreanPemesanan::find($this->cancelAntreanId);
+        if (!$antrean) {
+            session()->flash('sync_error', 'Antrean tidak ditemukan.');
+            $this->showCancelModal = false;
+            return;
+        }
+
+        if (!$this->canManageAntrean($antrean)) {
+            session()->flash('sync_error', 'Akses ditolak: Anda tidak memiliki wewenang untuk membatalkan antrean ini.');
+            $this->showCancelModal = false;
+            return;
+        }
+
+        $finalReason = $this->cancelAlasan === 'Lainnya' ? $this->customCancelAlasan : $this->cancelAlasan;
+
+        \Illuminate\Support\Facades\DB::transaction(function() use ($antrean, $finalReason) {
+            $antrean->status = 'Batal';
+            $antrean->alasan_batal = $finalReason;
+            $antrean->touch();
+            $antrean->save();
+        }, 5);
+
+        $this->showCancelModal = false;
+        $nomor = $antrean->nomor_antrean;
+        $this->reset(['cancelAntreanId', 'activeSelectedAntrean']);
+        session()->flash('sync_success', 'Antrean #' . $nomor . ' telah dibatalkan (Alasan: ' . $finalReason . ').');
     }
 
     public function saveWalkIn() {
@@ -662,6 +804,26 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
                                 <span>Khusus Kapster {{ optional($a->kapster)->nama ?? '-' }}</span>
                             </div>
                         @endif
+
+                        @if($isOwner || $this->canManageAntrean($a))
+                            <!-- Opsi Jadwalkan Ulang (Reschedule) & Batalkan Antrean -->
+                            <div class="mt-2.5 pt-2 border-t border-outline-variant/20 flex items-center justify-between text-xs">
+                                <button 
+                                    wire:click="openRescheduleModal({{ $a->id }})" 
+                                    type="button" 
+                                    class="text-on-surface-variant hover:text-amber-400 transition-colors flex items-center gap-1 font-medium cursor-pointer py-1 px-1.5 rounded hover:bg-surface-container-high/60">
+                                    <span class="material-symbols-outlined text-[15px] text-amber-400">edit_calendar</span>
+                                    <span>Reschedule</span>
+                                </button>
+                                <button 
+                                    wire:click="openCancelModal({{ $a->id }})" 
+                                    type="button" 
+                                    class="text-on-surface-variant hover:text-rose-400 transition-colors flex items-center gap-1 font-medium cursor-pointer py-1 px-1.5 rounded hover:bg-surface-container-high/60">
+                                    <span class="material-symbols-outlined text-[15px] text-rose-400">cancel</span>
+                                    <span>Batalkan</span>
+                                </button>
+                            </div>
+                        @endif
                     </div>
                 @empty
                     <div class="text-center text-on-surface-variant py-10 opacity-60 text-xs">
@@ -737,8 +899,8 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
                                     <span>Ke Kasir</span>
                                 </button>
                             </div>
-                            @if($isOwner)
-                                <div class="mt-1.5 flex justify-end">
+                            <div class="mt-2 pt-2 border-t border-outline-variant/20 flex items-center justify-between text-xs">
+                                @if($isOwner)
                                     <button 
                                         wire:click="resetToWaiting({{ $a->id }})"
                                         wire:loading.attr="disabled"
@@ -746,10 +908,19 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
                                         type="button"
                                         class="text-[11px] text-on-surface-variant hover:text-amber-400 transition-colors flex items-center gap-1 cursor-pointer">
                                         <span class="material-symbols-outlined text-[13px]">undo</span>
-                                        <span>Kembalikan ke antrean Menunggu</span>
+                                        <span>Kembalikan Menunggu</span>
                                     </button>
-                                </div>
-                            @endif
+                                @else
+                                    <div></div>
+                                @endif
+                                <button 
+                                    wire:click="openCancelModal({{ $a->id }})" 
+                                    type="button" 
+                                    class="text-[11px] text-on-surface-variant hover:text-rose-400 transition-colors flex items-center gap-1 font-medium cursor-pointer">
+                                    <span class="material-symbols-outlined text-[13px] text-rose-400">cancel</span>
+                                    <span>Batalkan</span>
+                                </button>
+                            </div>
                         @else
                             <div class="mt-2 w-full bg-surface-container-high/60 border border-outline-variant/30 text-on-surface-variant/80 font-medium text-xs rounded-lg py-2 flex items-center justify-center gap-1.5 cursor-not-allowed select-none">
                                 <span class="material-symbols-outlined text-[16px] text-emerald-400">lock</span>
@@ -906,6 +1077,177 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
                         <span wire:loading.remove wire:target="saveWalkIn" class="material-symbols-outlined text-[16px]">check</span>
                         <span wire:loading wire:target="saveWalkIn" class="material-symbols-outlined text-[16px] animate-spin">refresh</span>
                         <span>Simpan Antrean</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    <!-- Reschedule Modal -->
+    @if($showRescheduleModal && $activeSelectedAntrean)
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+            <div class="w-full max-w-lg bg-surface-container-high rounded-2xl shadow-2xl overflow-hidden border border-outline-variant/40 animate-[scale-up_0.2s_ease-out]">
+                <!-- Header -->
+                <div class="flex items-center justify-between p-5 bg-surface-container-highest border-b border-outline-variant/30">
+                    <div class="flex items-center gap-2.5">
+                        <span class="material-symbols-outlined text-amber-400 text-2xl">edit_calendar</span>
+                        <div>
+                            <h2 class="font-bold text-base text-on-surface">Jadwalkan Ulang (Reschedule)</h2>
+                            <p class="text-xs text-on-surface-variant font-mono">Antrean #{{ $activeSelectedAntrean->nomor_antrean }}</p>
+                        </div>
+                    </div>
+                    <button wire:click="$set('showRescheduleModal', false)" class="text-on-surface-variant hover:text-primary transition-colors focus:outline-none">
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+
+                <!-- Info Customer & Service -->
+                <div class="px-5 pt-4 pb-3 bg-surface-container/50 border-b border-outline-variant/20 flex items-center justify-between text-xs">
+                    <div>
+                        <div class="text-on-surface font-bold text-sm">{{ optional($activeSelectedAntrean->pelanggan)->nama ?? 'Pelanggan Umum' }}</div>
+                        <div class="text-primary font-medium">{{ optional($activeSelectedAntrean->layanan)->nama_layanan ?? '-' }}</div>
+                    </div>
+                    <div class="text-right text-on-surface-variant">
+                        <div>Jadwal Semula:</div>
+                        <div class="font-mono text-amber-400 font-semibold">{{ $activeSelectedAntrean->tanggal }} {{ substr($activeSelectedAntrean->waktu_estimasi_mulai, 0, 5) }} WIB</div>
+                    </div>
+                </div>
+
+                <!-- Body Form -->
+                <div class="p-5 space-y-4">
+                    <!-- Date Picker with Quick Buttons -->
+                    <div class="space-y-1.5">
+                        <div class="flex items-center justify-between">
+                            <label class="block text-xs uppercase font-bold text-on-surface-variant tracking-wider">Pilih Tanggal Baru</label>
+                            <div class="flex items-center gap-1.5">
+                                <button wire:click="setRescheduleToday" type="button" class="text-[11px] px-2 py-0.5 rounded bg-surface-container-highest hover:bg-surface-bright text-on-surface transition-colors cursor-pointer {{ $rescheduleTanggal === $today ? 'border border-primary text-primary font-bold' : '' }}">
+                                    Hari Ini
+                                </button>
+                                <button wire:click="setRescheduleTomorrow" type="button" class="text-[11px] px-2 py-0.5 rounded bg-surface-container-highest hover:bg-surface-bright text-on-surface transition-colors cursor-pointer {{ $rescheduleTanggal === $tomorrow ? 'border border-primary text-primary font-bold' : '' }}">
+                                    Besok
+                                </button>
+                            </div>
+                        </div>
+                        <input wire:model="rescheduleTanggal" min="{{ $today }}" class="w-full bg-surface-container text-on-surface text-sm px-4 py-2.5 rounded-xl border border-outline-variant/40 focus:outline-none focus:border-primary transition-colors font-mono" type="date">
+                        @error('rescheduleTanggal') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
+                    </div>
+
+                    <!-- Kapster Selection -->
+                    <div class="space-y-1.5">
+                        <label class="block text-xs uppercase font-bold text-on-surface-variant tracking-wider">Kapster Bertugas</label>
+                        <select wire:model="rescheduleKapsterId" class="w-full bg-surface-container text-on-surface text-sm px-3.5 py-2.5 rounded-xl border border-outline-variant/40 focus:outline-none focus:border-primary transition-colors">
+                            @foreach($kapsters as $k)
+                                <option value="{{ $k->id }}">{{ $k->nama }}</option>
+                            @endforeach
+                        </select>
+                        @error('rescheduleKapsterId') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
+                    </div>
+
+                    <!-- Time Slot Grid -->
+                    <div class="space-y-2 pt-1">
+                        <label class="block text-xs uppercase font-bold text-on-surface-variant tracking-wider">Pilih Jam / Slot Waktu Baru</label>
+                        <div class="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-40 overflow-y-auto pr-1">
+                            @foreach($timeSlots as $time)
+                                <label class="cursor-pointer">
+                                    <input wire:model="rescheduleTime" value="{{ $time }}" class="peer sr-only" type="radio">
+                                    <div class="py-2 rounded-lg border border-outline-variant/30 bg-surface-container text-on-surface text-center hover:bg-surface-container-high transition-colors text-xs font-mono peer-checked:border-primary peer-checked:bg-primary/15 peer-checked:text-primary font-bold">
+                                        {{ $time }}
+                                    </div>
+                                </label>
+                            @endforeach
+                        </div>
+                        @error('rescheduleTime') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="p-5 bg-surface-container-highest border-t border-outline-variant/30 flex items-center justify-end gap-3">
+                    <button wire:click="$set('showRescheduleModal', false)" type="button" class="px-4 py-2 text-xs font-semibold text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer">
+                        Batal
+                    </button>
+                    <button wire:click="saveReschedule" wire:loading.attr="disabled" type="button" class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold rounded-xl hover:bg-primary-fixed transition-all flex items-center gap-1.5 shadow-md shadow-primary/20 cursor-pointer">
+                        <span wire:loading.remove wire:target="saveReschedule" class="material-symbols-outlined text-[16px]">check</span>
+                        <span wire:loading wire:target="saveReschedule" class="material-symbols-outlined text-[16px] animate-spin">refresh</span>
+                        <span>Simpan Jadwal Baru</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    <!-- Cancel Modal -->
+    @if($showCancelModal && $activeSelectedAntrean)
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+            <div class="w-full max-w-md bg-surface-container-high rounded-2xl shadow-2xl overflow-hidden border border-outline-variant/40 animate-[scale-up_0.2s_ease-out]">
+                <!-- Header -->
+                <div class="flex items-center justify-between p-5 bg-surface-container-highest border-b border-outline-variant/30">
+                    <div class="flex items-center gap-2.5">
+                        <span class="material-symbols-outlined text-rose-400 text-2xl">cancel</span>
+                        <div>
+                            <h2 class="font-bold text-base text-on-surface">Batalkan Antrean</h2>
+                            <p class="text-xs text-on-surface-variant font-mono">Antrean #{{ $activeSelectedAntrean->nomor_antrean }}</p>
+                        </div>
+                    </div>
+                    <button wire:click="$set('showCancelModal', false)" class="text-on-surface-variant hover:text-primary transition-colors focus:outline-none">
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+
+                <!-- Info Customer & Service -->
+                <div class="px-5 pt-4 pb-3 bg-surface-container/50 border-b border-outline-variant/20 flex items-center justify-between text-xs">
+                    <div>
+                        <div class="text-on-surface font-bold text-sm">{{ optional($activeSelectedAntrean->pelanggan)->nama ?? 'Pelanggan Umum' }}</div>
+                        <div class="text-primary font-medium">{{ optional($activeSelectedAntrean->layanan)->nama_layanan ?? '-' }}</div>
+                    </div>
+                    <div class="text-right text-on-surface-variant font-mono">
+                        {{ $activeSelectedAntrean->tanggal }}<br>
+                        {{ substr($activeSelectedAntrean->waktu_estimasi_mulai, 0, 5) }} WIB
+                    </div>
+                </div>
+
+                <!-- Body Form -->
+                <div class="p-5 space-y-4">
+                    <div class="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300 flex items-start gap-2">
+                        <span class="material-symbols-outlined text-base shrink-0 mt-0.5">warning</span>
+                        <span>Antrean ini akan dibatalkan dan statusnya diperbarui di database serta Google Spreadsheet.</span>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="block text-xs uppercase font-bold text-on-surface-variant tracking-wider">Alasan Pembatalan</label>
+                        <div class="space-y-1.5">
+                            @foreach([
+                                'Pelanggan berhalangan hadir / No-Show',
+                                'Permintaan langsung dari pelanggan',
+                                'Pelanggan tidak dapat dihubungi',
+                                'Kendala teknis / Kapster berhalangan',
+                                'Lainnya'
+                            ] as $reasonOption)
+                                <label class="flex items-center gap-2.5 p-2.5 rounded-xl border border-outline-variant/30 hover:bg-surface-container-highest/60 transition-colors cursor-pointer text-xs text-on-surface">
+                                    <input type="radio" wire:model.live="cancelAlasan" value="{{ $reasonOption }}" class="text-rose-500 focus:ring-rose-500">
+                                    <span>{{ $reasonOption }}</span>
+                                </label>
+                            @endforeach
+                        </div>
+                    </div>
+
+                    @if($cancelAlasan === 'Lainnya')
+                        <div class="space-y-1.5 animate-[fade-in_0.2s_ease-out]">
+                            <label class="block text-xs font-bold text-on-surface-variant">Tuliskan Alasan Pembatalan:</label>
+                            <textarea wire:model="customCancelAlasan" rows="3" class="w-full bg-surface-container text-on-surface text-xs p-3 rounded-xl border border-outline-variant/40 focus:outline-none focus:border-rose-400 transition-colors" placeholder="Jelaskan alasan pembatalan..."></textarea>
+                            @error('customCancelAlasan') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
+                        </div>
+                    @endif
+                </div>
+
+                <!-- Footer -->
+                <div class="p-5 bg-surface-container-highest border-t border-outline-variant/30 flex items-center justify-end gap-3">
+                    <button wire:click="$set('showCancelModal', false)" type="button" class="px-4 py-2 text-xs font-semibold text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer">
+                        Kembali
+                    </button>
+                    <button wire:click="confirmCancel" wire:loading.attr="disabled" type="button" class="px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-md shadow-rose-600/20 cursor-pointer">
+                        <span wire:loading.remove wire:target="confirmCancel" class="material-symbols-outlined text-[16px]">cancel</span>
+                        <span wire:loading wire:target="confirmCancel" class="material-symbols-outlined text-[16px] animate-spin">refresh</span>
+                        <span>Konfirmasi Batalkan</span>
                     </button>
                 </div>
             </div>
