@@ -177,37 +177,43 @@ new #[Layout('components.layouts.admin')] #[Title('Kas & Pengeluaran - Ran Cukur
     </div>
     
     @if($showModal)
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div class="bg-surface-container rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-white/10 max-h-[90vh] overflow-y-auto">
-                <div class="px-4 lg:px-5 py-4 border-b border-white/10 flex justify-between items-center bg-surface-container-lowest sticky top-0 z-10">
-                    <h3 class="font-headline-md text-on-surface text-headline-md">{{ $isEdit ? 'Edit Pengeluaran' : 'Catat Pengeluaran' }}</h3>
-                    <button wire:click="$set('showModal', false)" class="text-on-surface-variant hover:text-error transition-colors">
-                        <span class="material-symbols-outlined">close</span>
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-3 sm:p-4 md:p-6 overflow-y-auto">
+            <div class="bg-surface-container rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden border border-white/10 animate-[scale-up_0.2s_ease-out]">
+                <!-- Sticky Header -->
+                <div class="px-4 py-3 sm:px-5 sm:py-4 border-b border-white/10 flex justify-between items-center bg-surface-container-lowest shrink-0">
+                    <h3 class="font-headline-md text-base sm:text-lg font-bold text-on-surface">{{ $isEdit ? 'Edit Pengeluaran' : 'Catat Pengeluaran' }}</h3>
+                    <button wire:click="$set('showModal', false)" class="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:text-error hover:bg-white/5 transition-colors">
+                        <span class="material-symbols-outlined text-[20px]">close</span>
                     </button>
                 </div>
-                <form wire:submit="save" class="p-4 lg:p-5 space-y-4">
-                    <div class="space-y-2">
-                        <label class="block font-label-md text-label-md text-on-surface">Tanggal</label>
-                        <input wire:model="tanggal" type="date" class="w-full bg-background rounded-xl py-3 px-4 font-body-md text-body-md text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
-                        @error('tanggal') <span class="text-error text-sm">{{ $message }}</span> @enderror
-                    </div>
+                
+                <form wire:submit="save" class="flex flex-col flex-1 overflow-hidden min-h-0">
+                    <!-- Scrollable Body -->
+                    <div class="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
+                        <div class="space-y-1.5">
+                            <label class="block font-label-md text-xs font-semibold text-on-surface">Tanggal</label>
+                            <input wire:model="tanggal" type="date" class="w-full bg-background rounded-xl py-2.5 px-3.5 font-body-md text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
+                            @error('tanggal') <span class="text-error text-xs">{{ $message }}</span> @enderror
+                        </div>
 
-                    <div class="space-y-2">
-                        <label class="block font-label-md text-label-md text-on-surface">Keterangan / Tujuan</label>
-                        <input wire:model="keterangan" type="text" class="w-full bg-background rounded-xl py-3 px-4 font-body-md text-body-md text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
-                        @error('keterangan') <span class="text-error text-sm">{{ $message }}</span> @enderror
+                        <div class="space-y-1.5">
+                            <label class="block font-label-md text-xs font-semibold text-on-surface">Keterangan / Tujuan</label>
+                            <input wire:model="keterangan" type="text" class="w-full bg-background rounded-xl py-2.5 px-3.5 font-body-md text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" placeholder="e.g. Pembelian tissue, listrik, air" required>
+                            @error('keterangan') <span class="text-error text-xs">{{ $message }}</span> @enderror
+                        </div>
+                        
+                        <div class="space-y-1.5">
+                            <label class="block font-label-md text-xs font-semibold text-on-surface">Nominal (Rp)</label>
+                            <input wire:model="nominal" type="number" min="0" class="w-full bg-background rounded-xl py-2.5 px-3.5 font-body-md text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" placeholder="50000" required>
+                            @error('nominal') <span class="text-error text-xs">{{ $message }}</span> @enderror
+                        </div>
                     </div>
                     
-                    <div class="space-y-2">
-                        <label class="block font-label-md text-label-md text-on-surface">Nominal (Rp)</label>
-                        <input wire:model="nominal" type="number" class="w-full bg-background rounded-xl py-3 px-4 font-body-md text-body-md text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
-                        @error('nominal') <span class="text-error text-sm">{{ $message }}</span> @enderror
-                    </div>
-                    
-                    <div class="pt-6 flex justify-end gap-3 border-t border-white/10 mt-6">
-                        <button type="button" wire:click="$set('showModal', false)" class="px-4 lg:px-5 py-2.5 rounded-full font-label-md text-label-md text-on-surface-variant hover:bg-surface-container-highest transition-colors">Batal</button>
-                        <button type="submit" class="px-4 lg:px-5 py-2.5 rounded-full font-label-md text-label-md bg-primary text-on-primary hover:bg-primary-container hover:text-on-primary-container transition-colors shadow-lg shadow-primary/20">
-                            <span wire:loading.remove wire:target="save">Simpan</span>
+                    <!-- Sticky Footer -->
+                    <div class="px-4 py-3 sm:px-5 sm:py-3.5 border-t border-white/10 bg-surface-container-lowest shrink-0 flex justify-end gap-2 sm:gap-3">
+                        <button type="button" wire:click="$set('showModal', false)" class="px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl font-label-md text-xs font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors">Batal</button>
+                        <button type="submit" class="px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl font-label-md text-xs font-semibold bg-primary text-on-primary hover:bg-primary-container transition-all flex items-center gap-1.5 shadow-md">
+                            <span wire:loading.remove wire:target="save">{{ $isEdit ? 'Simpan Perubahan' : 'Simpan Pengeluaran' }}</span>
                             <span wire:loading wire:target="save">Menyimpan...</span>
                         </button>
                     </div>
@@ -216,4 +222,3 @@ new #[Layout('components.layouts.admin')] #[Title('Kas & Pengeluaran - Ran Cukur
         </div>
     @endif
 </div>
-

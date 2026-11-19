@@ -343,23 +343,23 @@ new #[Layout('components.layouts.admin')] #[Title('Kelola Jadwal - Ran CukurIn')
  
  <!-- Holiday Modal -->
  @if($showHolidayModal)
- <div class="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
- <div class="bg-surface-container rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border border-white/10">
- <div class="px-4 py-4 border-b border-surface-container-high flex justify-between items-center bg-surface-container-lowest">
- <h3 class="font-headline-md text-on-surface">Tandai Libur Nasional</h3>
+ <div class="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 md:p-6 overflow-y-auto">
+ <div class="bg-surface-container rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border border-white/10 max-h-[92vh] sm:max-h-[90vh] flex flex-col">
+ <div class="px-4 py-3.5 sm:px-5 sm:py-4 border-b border-surface-container-high flex justify-between items-center bg-surface-container-lowest shrink-0">
+ <h3 class="font-headline-md text-on-surface text-base font-bold">Tandai Libur Nasional</h3>
  <button wire:click="$set('showHolidayModal', false)" class="text-on-surface-variant hover:text-error transition-colors">
  <span class="material-symbols-outlined">close</span>
  </button>
  </div>
- <div class="p-4 space-y-4">
+ <div class="p-4 sm:p-5 space-y-4 flex-1 min-h-0 overflow-y-auto">
  <div class="space-y-2">
- <label class="block font-label-md text-on-surface">Pilih Tanggal</label>
- <input wire:model="holidayDate" type="date" class="w-full bg-background rounded-xl py-3 px-4 font-body-md text-on-surface border border-outline-variant focus:border-primary outline-none" required>
+ <label class="block font-label-md text-on-surface text-xs font-bold uppercase tracking-wider">Pilih Tanggal</label>
+ <input wire:model="holidayDate" type="date" class="w-full bg-background rounded-xl py-2.5 px-3.5 font-body-md text-on-surface border border-outline-variant focus:border-primary outline-none text-xs" required>
  </div>
  </div>
- <div class="p-4 flex justify-end gap-3 border-t border-surface-container-high">
- <button wire:click="$set('showHolidayModal', false)" class="px-4 py-2 rounded-full font-label-md text-on-surface-variant hover:bg-surface-container-highest">Batal</button>
- <button wire:click="markHoliday" class="px-4 py-2 rounded-full font-label-md bg-error text-on-error hover:bg-error/80 transition-colors">Simpan Libur</button>
+ <div class="px-4 py-3 sm:px-5 sm:py-3.5 flex justify-end gap-2 sm:gap-3 border-t border-surface-container-high shrink-0">
+ <button wire:click="$set('showHolidayModal', false)" class="px-4 py-2 rounded-xl font-label-md text-xs text-on-surface-variant hover:bg-surface-container-highest transition-colors">Batal</button>
+ <button wire:click="markHoliday" class="px-4 py-2 rounded-xl font-label-md text-xs bg-error text-on-error hover:bg-error/80 transition-colors font-bold">Simpan Libur</button>
  </div>
  </div>
  </div>

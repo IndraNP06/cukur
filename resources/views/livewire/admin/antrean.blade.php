@@ -1086,17 +1086,17 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
 
     <!-- Walk-In Modal -->
     @if($showWalkInModal)
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
-            <div class="w-full max-w-lg bg-surface-container-high rounded-2xl shadow-2xl overflow-hidden border border-outline-variant/40 animate-[scale-up_0.2s_ease-out]">
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-3 sm:p-4 md:p-6 overflow-y-auto">
+            <div class="w-full max-w-xl bg-surface-container-high rounded-2xl shadow-2xl overflow-hidden border border-outline-variant/40 animate-[scale-up_0.2s_ease-out] max-h-[92vh] sm:max-h-[90vh] flex flex-col">
                 <!-- Header -->
-                <div class="flex items-center justify-between p-5 bg-surface-container-highest border-b border-outline-variant/30">
+                <div class="flex items-center justify-between px-4 py-3.5 sm:px-5 sm:py-4 bg-surface-container-highest border-b border-outline-variant/30 shrink-0">
                     <h2 class="font-bold text-lg text-on-surface">Tambah Antrean Walk-In</h2>
                     <button wire:click="$set('showWalkInModal', false)" class="text-on-surface-variant hover:text-primary transition-colors focus:outline-none">
                         <span class="material-symbols-outlined">close</span>
                     </button>
                 </div>
                 <!-- Body -->
-                <div class="p-5 space-y-4">
+                <div class="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1 min-h-0">
                     <!-- Customer Name -->
                     <div class="space-y-1.5">
                         <label class="block text-xs uppercase font-bold text-on-surface-variant tracking-wider">Nama Pelanggan</label>
@@ -1104,7 +1104,7 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
                         @error('walkInName') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
                     </div>
                     <!-- Service & Barber Row -->
-                    <div class="grid grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                         <div class="space-y-1.5">
                             <label class="block text-xs uppercase font-bold text-on-surface-variant tracking-wider">Layanan</label>
                             <select wire:model="walkInLayanan" class="w-full bg-surface-container text-on-surface text-sm px-3.5 py-2.5 rounded-xl border border-outline-variant/40 focus:outline-none focus:border-primary transition-colors">
@@ -1216,7 +1216,7 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
                 </div>
                 </div>
                 <!-- Footer -->
-                <div class="p-5 bg-surface-container-highest border-t border-outline-variant/30 flex items-center justify-end gap-3">
+                <div class="px-4 py-3 sm:px-5 sm:py-3.5 bg-surface-container-highest border-t border-outline-variant/30 flex items-center justify-end gap-2 sm:gap-3 shrink-0">
                     <button wire:click="$set('showWalkInModal', false)" type="button" class="px-4 py-2 text-xs font-semibold text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer">
                         Batal
                     </button>
@@ -1232,10 +1232,10 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
 
     <!-- Reschedule Modal -->
     @if($showRescheduleModal && $activeSelectedAntrean)
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
-            <div class="w-full max-w-lg bg-surface-container-high rounded-2xl shadow-2xl overflow-hidden border border-outline-variant/40 animate-[scale-up_0.2s_ease-out]">
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-3 sm:p-4 md:p-6 overflow-y-auto">
+            <div class="w-full max-w-xl bg-surface-container-high rounded-2xl shadow-2xl overflow-hidden border border-outline-variant/40 animate-[scale-up_0.2s_ease-out] max-h-[92vh] sm:max-h-[90vh] flex flex-col">
                 <!-- Header -->
-                <div class="flex items-center justify-between p-5 bg-surface-container-highest border-b border-outline-variant/30">
+                <div class="flex items-center justify-between px-4 py-3.5 sm:px-5 sm:py-4 bg-surface-container-highest border-b border-outline-variant/30 shrink-0">
                     <div class="flex items-center gap-2.5">
                         <span class="material-symbols-outlined text-amber-400 text-2xl">edit_calendar</span>
                         <div>
@@ -1261,7 +1261,7 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
                 </div>
 
                 <!-- Body Form -->
-                <div class="p-5 space-y-4">
+                <div class="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1 min-h-0">
                     <!-- Date Picker with Quick Buttons -->
                     <div class="space-y-1.5">
                         <div class="flex items-center justify-between">
@@ -1370,7 +1370,7 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
                 </div>
 
                 <!-- Footer -->
-                <div class="p-5 bg-surface-container-highest border-t border-outline-variant/30 flex items-center justify-end gap-3">
+                <div class="px-4 py-3 sm:px-5 sm:py-3.5 bg-surface-container-highest border-t border-outline-variant/30 flex items-center justify-end gap-2 sm:gap-3 shrink-0">
                     <button wire:click="$set('showRescheduleModal', false)" type="button" class="px-4 py-2 text-xs font-semibold text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer">
                         Batal
                     </button>
@@ -1386,10 +1386,10 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
 
     <!-- Cancel Modal -->
     @if($showCancelModal && $activeSelectedAntrean)
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
-            <div class="w-full max-w-md bg-surface-container-high rounded-2xl shadow-2xl overflow-hidden border border-outline-variant/40 animate-[scale-up_0.2s_ease-out]">
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-3 sm:p-4 md:p-6 overflow-y-auto">
+            <div class="w-full max-w-md bg-surface-container-high rounded-2xl shadow-2xl overflow-hidden border border-outline-variant/40 animate-[scale-up_0.2s_ease-out] max-h-[92vh] sm:max-h-[90vh] flex flex-col">
                 <!-- Header -->
-                <div class="flex items-center justify-between p-5 bg-surface-container-highest border-b border-outline-variant/30">
+                <div class="flex items-center justify-between px-4 py-3.5 sm:px-5 sm:py-4 bg-surface-container-highest border-b border-outline-variant/30 shrink-0">
                     <div class="flex items-center gap-2.5">
                         <span class="material-symbols-outlined text-rose-400 text-2xl">cancel</span>
                         <div>
@@ -1415,7 +1415,7 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
                 </div>
 
                 <!-- Body Form -->
-                <div class="p-5 space-y-4">
+                <div class="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1 min-h-0">
                     <div class="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300 flex items-start gap-2">
                         <span class="material-symbols-outlined text-base shrink-0 mt-0.5">warning</span>
                         <span>Antrean ini akan dibatalkan dan statusnya diperbarui di database serta Google Spreadsheet.</span>
@@ -1449,7 +1449,7 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
                 </div>
 
                 <!-- Footer -->
-                <div class="p-5 bg-surface-container-highest border-t border-outline-variant/30 flex items-center justify-end gap-3">
+                <div class="px-4 py-3 sm:px-5 sm:py-3.5 bg-surface-container-highest border-t border-outline-variant/30 flex items-center justify-end gap-2 sm:gap-3 shrink-0">
                     <button wire:click="$set('showCancelModal', false)" type="button" class="px-4 py-2 text-xs font-semibold text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer">
                         Kembali
                     </button>

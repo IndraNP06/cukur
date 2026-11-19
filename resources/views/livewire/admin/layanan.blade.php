@@ -265,15 +265,15 @@ new #[Layout('components.layouts.admin')] #[Title('Kelola Layanan - Ran Cukurin'
 
  <!-- Modal Form -->
     @if($showModal)
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 sm:p-6 overflow-y-auto">
-        <div class="bg-surface-container rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden border border-white/10 animate-[scale-up_0.2s_ease-out]">
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-3 sm:p-4 md:p-6 overflow-y-auto">
+        <div class="bg-surface-container rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden border border-white/10 animate-[scale-up_0.2s_ease-out]">
             <!-- Modal Header (Always Visible / Sticky) -->
-            <div class="px-5 py-4 border-b border-white/10 flex justify-between items-center bg-surface-container-lowest shrink-0">
+            <div class="px-4 py-3.5 sm:px-5 sm:py-4 border-b border-white/10 flex justify-between items-center bg-surface-container-lowest shrink-0">
                 <div class="flex items-center gap-2.5">
                     <div class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
                         <span class="material-symbols-outlined text-[20px]">{{ $isEdit ? 'edit_note' : 'add_circle' }}</span>
                     </div>
-                    <h3 class="font-headline-md text-on-surface text-lg font-bold">{{ $isEdit ? 'Edit Layanan' : 'Tambah Layanan Baru' }}</h3>
+                    <h3 class="font-headline-md text-on-surface text-base sm:text-lg font-bold">{{ $isEdit ? 'Edit Layanan' : 'Tambah Layanan Baru' }}</h3>
                 </div>
                 <button type="button" wire:click="$set('showModal', false)" class="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:text-error hover:bg-white/5 transition-colors focus:outline-none">
                     <span class="material-symbols-outlined text-[20px]">close</span>
@@ -283,7 +283,7 @@ new #[Layout('components.layouts.admin')] #[Title('Kelola Layanan - Ran Cukurin'
             <!-- Form Container with scrollable content & pinned footer -->
             <form wire:submit="save" class="flex flex-col flex-1 overflow-hidden min-h-0">
                 <!-- Scrollable Form Body -->
-                <div class="p-5 overflow-y-auto space-y-4 flex-1">
+                <div class="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
                     <!-- Row 1: Nama Layanan & Gambar URL -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div class="space-y-1.5">
@@ -376,7 +376,7 @@ new #[Layout('components.layouts.admin')] #[Title('Kelola Layanan - Ran Cukurin'
                 </div>
                 
                 <!-- Modal Footer (Always Visible / Sticky at Bottom) -->
-                <div class="px-5 py-3.5 border-t border-white/10 bg-surface-container-lowest shrink-0 flex justify-end items-center gap-3">
+                <div class="px-4 py-3 sm:px-5 sm:py-3.5 border-t border-white/10 bg-surface-container-lowest shrink-0 flex justify-end items-center gap-2 sm:gap-3">
                     <button type="button" wire:click="$set('showModal', false)" class="px-5 py-2.5 rounded-xl font-label-md text-xs font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors">Batal</button>
                     <button type="submit" class="px-5 py-2.5 rounded-xl font-label-md text-xs font-semibold bg-primary text-on-primary hover:bg-primary-container hover:text-on-primary-container transition-all shadow-md shadow-primary/20 flex items-center gap-2">
                         <span wire:loading.remove wire:target="save" class="flex items-center gap-1.5">

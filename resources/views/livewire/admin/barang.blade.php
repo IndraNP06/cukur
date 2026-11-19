@@ -406,67 +406,78 @@ new #[Layout('components.layouts.admin')] #[Title('Kelola Barang & Inventaris - 
 
     <!-- Modal Form Tambah / Edit Barang -->
     @if($showModal)
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div class="bg-surface-container rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-outline-variant/30 max-h-[90vh] overflow-y-auto">
-                <div class="px-5 py-4 border-b border-outline-variant/20 flex justify-between items-center bg-surface-container-lowest sticky top-0 z-10">
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-3 sm:p-4 md:p-6 overflow-y-auto">
+            <div class="bg-surface-container rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden border border-outline-variant/30 animate-[scale-up_0.2s_ease-out]">
+                <!-- Sticky Header -->
+                <div class="px-4 py-3 sm:px-5 sm:py-4 border-b border-outline-variant/20 flex justify-between items-center bg-surface-container-lowest shrink-0">
                     <h3 class="font-bold text-base text-on-surface">{{ $isEdit ? 'Edit Data Barang' : 'Tambah Barang Baru' }}</h3>
-                    <button wire:click="$set('showModal', false)" class="text-on-surface-variant hover:text-error transition-colors cursor-pointer">
+                    <button wire:click="$set('showModal', false)" class="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:text-error hover:bg-white/5 transition-colors cursor-pointer">
                         <span class="material-symbols-outlined text-xl">close</span>
                     </button>
                 </div>
-                <form wire:submit="save" class="p-5 space-y-4">
-                    <div class="space-y-1.5">
-                        <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Nama Barang</label>
-                        <input wire:model="nama_barang" type="text" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
-                        @error('nama_barang') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
-                    </div>
-                    
-                    <div class="space-y-1.5">
-                        <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Path / URL Gambar (Opsional)</label>
-                        <input wire:model="gambar" type="text" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" placeholder="e.g. images/barang/pomade-oil.jpg">
-                        @error('gambar') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
+
+                <form wire:submit="save" class="flex flex-col flex-1 overflow-hidden min-h-0">
+                    <!-- Scrollable Body -->
+                    <div class="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
+                        <div class="space-y-1.5">
+                            <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Nama Barang</label>
+                            <input wire:model="nama_barang" type="text" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
+                            @error('nama_barang') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
+                        </div>
+                        
+                        <div class="space-y-1.5">
+                            <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Path / URL Gambar (Opsional)</label>
+                            <input wire:model="gambar" type="text" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" placeholder="e.g. images/barang/pomade-oil.jpg">
+                            @error('gambar') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Kategori / Tipe Barang</label>
+                            <select wire:model="tipe" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors cursor-pointer" required>
+                                <option value="ProdukJual">Produk Jual (Retail / Eceran)</option>
+                                <option value="BahanBaku">Material Operasional (Bahan Baku / Ekstra Salon)</option>
+                            </select>
+                            @error('tipe') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div class="space-y-1.5">
+                                <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Stok Barang</label>
+                                <input wire:model="stok_sekarang" type="number" min="0" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
+                                @error('stok_sekarang') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
+                            </div>
+                            <div class="space-y-1.5">
+                                <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Batas Minimum (Alert)</label>
+                                <input wire:model="batas_minimum" type="number" min="0" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
+                                @error('batas_minimum') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div class="space-y-1.5">
+                                <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Harga Beli / Modal (Rp)</label>
+                                <input wire:model="harga_beli" type="number" min="0" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
+                                @error('harga_beli') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
+                            </div>
+                            <div class="space-y-1.5">
+                                <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Harga Jual (Rp)</label>
+                                <input wire:model="harga_jual" type="number" min="0" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
+                                @error('harga_jual') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
+                            </div>
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Satuan Unit</label>
+                            <input wire:model="satuan" type="text" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" placeholder="e.g. Pcs, Botol, Tube, Box" required>
+                            @error('satuan') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
+                        </div>
                     </div>
 
-                    <div class="space-y-1.5">
-                        <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Kategori / Tipe Barang</label>
-                        <select wire:model="tipe" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors cursor-pointer" required>
-                            <option value="ProdukJual">Produk Jual (Retail / Eceran)</option>
-                            <option value="BahanBaku">Material Operasional (Bahan Baku / Ekstra Salon)</option>
-                        </select>
-                        @error('tipe') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-3">
-                        <div class="space-y-1.5">
-                            <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Stok Barang</label>
-                            <input wire:model="stok_sekarang" type="number" min="0" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
-                            @error('stok_sekarang') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
-                        </div>
-                        <div class="space-y-1.5">
-                            <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Batas Minimum (Alert)</label>
-                            <input wire:model="batas_minimum" type="number" min="0" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
-                            @error('batas_minimum') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-3">
-                        <div class="space-y-1.5">
-                            <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Harga Beli / Modal (Rp)</label>
-                            <input wire:model="harga_beli" type="number" min="0" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
-                            @error('harga_beli') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
-                        </div>
-                        <div class="space-y-1.5">
-                            <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Harga Jual (Rp)</label>
-                            <input wire:model="harga_jual" type="number" min="0" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
-                            <p class="text-[11px] text-on-surface-variant">Isi 0 jika material internal ops.</p>
-                            @error('harga_jual') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
-                        </div>
-                    </div>
-                    
-                    <div class="pt-4 flex justify-end gap-3 border-t border-outline-variant/20 mt-6">
-                        <button type="button" wire:click="$set('showModal', false)" class="px-4 py-2 rounded-xl text-xs font-semibold text-on-surface-variant hover:bg-surface-container-highest transition-colors cursor-pointer">Batal</button>
-                        <button type="submit" wire:loading.attr="disabled" class="px-5 py-2 rounded-xl text-xs font-semibold bg-primary text-on-primary hover:bg-primary-container hover:text-on-primary-container transition-colors shadow-md shadow-primary/20 cursor-pointer">
-                            <span wire:loading.remove wire:target="save">Simpan Barang</span>
+                    <!-- Sticky Footer -->
+                    <div class="px-4 py-3 sm:px-5 sm:py-3.5 border-t border-outline-variant/20 bg-surface-container-lowest shrink-0 flex justify-end gap-2 sm:gap-3">
+                        <button type="button" wire:click="$set('showModal', false)" class="px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl font-label-md text-xs font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors">Batal</button>
+                        <button type="submit" class="px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl font-label-md text-xs font-semibold bg-primary text-on-primary hover:bg-primary-container transition-all flex items-center gap-1.5 shadow-md">
+                            <span wire:loading.remove wire:target="save">{{ $isEdit ? 'Simpan Perubahan' : 'Simpan Barang' }}</span>
                             <span wire:loading wire:target="save">Menyimpan...</span>
                         </button>
                     </div>
@@ -477,53 +488,58 @@ new #[Layout('components.layouts.admin')] #[Title('Kelola Barang & Inventaris - 
 
     <!-- Modal Form Cepat Mutasi Masuk / Keluar Barang -->
     @if($showMutasiModal)
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div class="bg-surface-container rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-outline-variant/30 animate-[scale-up_0.2s_ease-out]">
-                <div class="px-5 py-4 border-b border-outline-variant/20 flex justify-between items-center bg-surface-container-lowest sticky top-0 z-10">
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-3 sm:p-4 md:p-6 overflow-y-auto">
+            <div class="bg-surface-container rounded-2xl shadow-2xl w-full max-w-md max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden border border-outline-variant/30 animate-[scale-up_0.2s_ease-out]">
+                <!-- Sticky Header -->
+                <div class="px-4 py-3 sm:px-5 sm:py-4 border-b border-outline-variant/20 flex justify-between items-center bg-surface-container-lowest shrink-0">
                     <div class="flex items-center gap-2">
                         <span class="material-symbols-outlined text-primary text-xl">swap_horiz</span>
-                        <h3 class="font-bold text-base text-on-surface">Input Mutasi: {{ $mutasiBarangNama }}</h3>
+                        <h3 class="font-bold text-sm sm:text-base text-on-surface truncate">Input Mutasi: {{ $mutasiBarangNama }}</h3>
                     </div>
-                    <button wire:click="$set('showMutasiModal', false)" class="text-on-surface-variant hover:text-error transition-colors cursor-pointer">
+                    <button wire:click="$set('showMutasiModal', false)" class="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:text-error hover:bg-white/5 transition-colors cursor-pointer shrink-0">
                         <span class="material-symbols-outlined text-xl">close</span>
                     </button>
                 </div>
-                <form wire:submit="saveMutasi" class="p-5 space-y-4">
-                    <div class="space-y-1.5">
-                        <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Jenis Mutasi</label>
-                        <div class="grid grid-cols-2 gap-2">
-                            <label class="cursor-pointer">
-                                <input wire:model.live="mutasiJenis" value="masuk" class="peer sr-only" type="radio">
-                                <div class="py-2.5 px-3 rounded-xl border border-outline-variant/30 bg-surface-container text-on-surface text-center hover:bg-surface-container-high transition-colors text-xs font-semibold peer-checked:border-emerald-500 peer-checked:bg-emerald-500/15 peer-checked:text-emerald-400 flex items-center justify-center gap-1.5">
-                                    <span class="material-symbols-outlined text-sm">add_circle</span>
-                                    <span>Barang Masuk (+)</span>
-                                </div>
-                            </label>
-                            <label class="cursor-pointer">
-                                <input wire:model.live="mutasiJenis" value="keluar" class="peer sr-only" type="radio">
-                                <div class="py-2.5 px-3 rounded-xl border border-outline-variant/30 bg-surface-container text-on-surface text-center hover:bg-surface-container-high transition-colors text-xs font-semibold peer-checked:border-rose-500 peer-checked:bg-rose-500/15 peer-checked:text-rose-400 flex items-center justify-center gap-1.5">
-                                    <span class="material-symbols-outlined text-sm">remove_circle</span>
-                                    <span>Barang Keluar (-)</span>
-                                </div>
-                            </label>
+
+                <form wire:submit="saveMutasi" class="flex flex-col flex-1 overflow-hidden min-h-0">
+                    <!-- Scrollable Body -->
+                    <div class="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
+                        <div class="space-y-1.5">
+                            <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Jenis Mutasi</label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <label class="cursor-pointer">
+                                    <input wire:model.live="mutasiJenis" value="masuk" class="peer sr-only" type="radio">
+                                    <div class="py-2.5 px-3 rounded-xl border border-outline-variant/30 bg-surface-container text-on-surface text-center hover:bg-surface-container-high transition-colors text-xs font-semibold peer-checked:border-emerald-500 peer-checked:bg-emerald-500/15 peer-checked:text-emerald-400 flex items-center justify-center gap-1.5">
+                                        <span class="material-symbols-outlined text-sm">add_circle</span>
+                                        <span>Masuk (+)</span>
+                                    </div>
+                                </label>
+                                <label class="cursor-pointer">
+                                    <input wire:model.live="mutasiJenis" value="keluar" class="peer sr-only" type="radio">
+                                    <div class="py-2.5 px-3 rounded-xl border border-outline-variant/30 bg-surface-container text-on-surface text-center hover:bg-surface-container-high transition-colors text-xs font-semibold peer-checked:border-rose-500 peer-checked:bg-rose-500/15 peer-checked:text-rose-400 flex items-center justify-center gap-1.5">
+                                        <span class="material-symbols-outlined text-sm">remove_circle</span>
+                                        <span>Keluar (-)</span>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Jumlah (Qty / Pcs)</label>
+                            <input wire:model="mutasiJumlah" type="number" min="1" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
+                            @error('mutasiJumlah') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Keterangan / Alasan (Opsional)</label>
+                            <textarea wire:model="mutasiKeterangan" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" rows="2" placeholder="Cth: Restok dari suplier, pemakaian salon, barang rusak, dll."></textarea>
                         </div>
                     </div>
 
-                    <div class="space-y-1.5">
-                        <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Jumlah (Qty / Pcs)</label>
-                        <input wire:model="mutasiJumlah" type="number" min="1" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
-                        @error('mutasiJumlah') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
-                    </div>
-
-                    <div class="space-y-1.5">
-                        <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Keterangan / Alasan (Opsional)</label>
-                        <textarea wire:model="mutasiKeterangan" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" rows="2" placeholder="Cth: Restok dari suplier, pemakaian salon, barang rusak, dll."></textarea>
-                        @error('mutasiKeterangan') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
-                    </div>
-
-                    <div class="pt-4 flex justify-end gap-3 border-t border-outline-variant/20 mt-6">
-                        <button type="button" wire:click="$set('showMutasiModal', false)" class="px-4 py-2 rounded-xl text-xs font-semibold text-on-surface-variant hover:bg-surface-container-highest transition-colors cursor-pointer">Batal</button>
-                        <button type="submit" wire:loading.attr="disabled" class="px-5 py-2 rounded-xl text-xs font-semibold bg-primary text-on-primary hover:bg-primary-container hover:text-on-primary-container transition-colors shadow-md shadow-primary/20 cursor-pointer">
+                    <!-- Sticky Footer -->
+                    <div class="px-4 py-3 sm:px-5 sm:py-3.5 border-t border-outline-variant/20 bg-surface-container-lowest shrink-0 flex justify-end gap-2 sm:gap-3">
+                        <button type="button" wire:click="$set('showMutasiModal', false)" class="px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl font-label-md text-xs font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors">Batal</button>
+                        <button type="submit" class="px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl font-label-md text-xs font-semibold bg-primary text-on-primary hover:bg-primary-container transition-all flex items-center gap-1.5 shadow-md">
                             <span wire:loading.remove wire:target="saveMutasi">Simpan Mutasi</span>
                             <span wire:loading wire:target="saveMutasi">Menyimpan...</span>
                         </button>

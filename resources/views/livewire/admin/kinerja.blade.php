@@ -509,11 +509,11 @@ new #[Layout('components.layouts.admin')] #[Title('Laporan Kinerja - Ran CukurIn
 
     <!-- MODAL DETAIL ULASAN KAPSTER -->
     @if($showUlasanModal && $selectedKapster)
-        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
-            <div class="bg-surface-container rounded-2xl border border-outline-variant/40 shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
+            <div class="bg-surface-container rounded-2xl border border-outline-variant/40 shadow-2xl max-w-2xl w-full max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
                 
                 <!-- Modal Header -->
-                <div class="p-5 bg-surface-container-high flex items-start justify-between border-b border-surface-container-highest gap-4">
+                <div class="px-4 py-3.5 sm:px-5 sm:py-4 bg-surface-container-high flex items-start justify-between border-b border-surface-container-highest gap-3 shrink-0">
                     <div class="flex items-center gap-3.5">
                         @if($selectedKapster['foto'])
                             <img src="{{ $selectedKapster['foto'] }}" alt="{{ $selectedKapster['nama'] }}" class="w-12 h-12 rounded-full object-cover border-2 border-primary shadow-sm">
@@ -548,7 +548,7 @@ new #[Layout('components.layouts.admin')] #[Title('Laporan Kinerja - Ran CukurIn
                 </div>
 
                 <!-- Modal Subheader Tabs & Highlights -->
-                <div class="px-5 py-3 bg-surface-container flex flex-wrap items-center justify-between gap-3 border-b border-surface-container-highest text-xs">
+                <div class="px-4 py-2.5 sm:px-5 sm:py-3 bg-surface-container flex flex-wrap items-center justify-between gap-2.5 border-b border-surface-container-highest text-xs shrink-0">
                     <div class="flex items-center gap-2">
                         <span class="text-on-surface-variant font-medium">Filter Ulasan:</span>
                         <div class="flex items-center bg-surface-container-high p-1 rounded-xl border border-outline-variant/30">
@@ -574,7 +574,7 @@ new #[Layout('components.layouts.admin')] #[Title('Laporan Kinerja - Ran CukurIn
                 </div>
 
                 <!-- Modal Content (Reviews List) -->
-                <div class="flex-grow overflow-y-auto p-5 space-y-3.5 max-h-[55vh]">
+                <div class="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 space-y-3.5">
                     @forelse($ulasans as $ulasan)
                         <div class="bg-surface-container-high/70 p-4 rounded-xl border border-surface-container-highest hover:border-primary/40 transition-colors flex flex-col gap-3">
                             <div class="flex items-start justify-between">
@@ -634,7 +634,7 @@ new #[Layout('components.layouts.admin')] #[Title('Laporan Kinerja - Ran CukurIn
                 </div>
 
                 <!-- Modal Footer -->
-                <div class="p-4 bg-surface-container-high border-t border-surface-container-highest flex items-center justify-between">
+                <div class="px-4 py-3 sm:px-5 sm:py-3.5 bg-surface-container-high border-t border-surface-container-highest flex items-center justify-between shrink-0">
                     <span class="text-xs text-on-surface-variant">Ran CukurIn • Evaluasi Pelayanan</span>
                     <button 
                         wire:click="closeUlasanModal" 

@@ -586,11 +586,11 @@ new #[Layout('components.layouts.admin')] #[Title('Laporan Pendapatan - Ran Cuku
             $mKapster = optional(optional($selectedTransaksi->antrean)->kapster)->nama ?? '-';
             $mKasir = optional($selectedTransaksi->kasir)->nama ?? 'Kasir Barbershop';
         @endphp
-        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
-            <div class="bg-surface-container rounded-2xl border border-outline-variant/40 shadow-2xl max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
+            <div class="bg-surface-container rounded-2xl border border-outline-variant/40 shadow-2xl max-w-lg w-full max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
                 
                 <!-- Modal Header -->
-                <div class="p-5 bg-surface-container-high flex items-center justify-between border-b border-surface-container-highest">
+                <div class="px-4 py-3.5 sm:px-5 sm:py-4 bg-surface-container-high flex items-center justify-between border-b border-surface-container-highest shrink-0">
                     <div class="flex items-center gap-3">
                         <div class="w-10 h-10 rounded-full bg-primary/20 text-primary flex items-center justify-center">
                             <span class="material-symbols-outlined text-[22px]">receipt</span>
@@ -609,10 +609,10 @@ new #[Layout('components.layouts.admin')] #[Title('Laporan Pendapatan - Ran Cuku
                 </div>
 
                 <!-- Modal Body -->
-                <div class="flex-grow overflow-y-auto p-5 space-y-4 text-xs">
+                <div class="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
                     
                     <!-- Metadata Info Grid -->
-                    <div class="grid grid-cols-2 gap-3 p-3.5 rounded-xl bg-surface-container-high/60 border border-outline-variant/30">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-xl bg-surface-container-high/60 border border-outline-variant/30">
                         <div>
                             <span class="text-on-surface-variant text-[11px] block">Pelanggan:</span>
                             <span class="font-bold text-on-surface text-sm">{{ $mPelanggan }}</span>
@@ -691,7 +691,7 @@ new #[Layout('components.layouts.admin')] #[Title('Laporan Pendapatan - Ran Cuku
                 </div>
 
                 <!-- Modal Footer -->
-                <div class="p-4 bg-surface-container-high border-t border-surface-container-highest flex items-center justify-between">
+                <div class="px-4 py-3 sm:px-5 sm:py-3.5 bg-surface-container-high border-t border-surface-container-highest flex items-center justify-between shrink-0">
                     <button 
                         onclick="window.print()" 
                         type="button" 

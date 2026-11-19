@@ -251,51 +251,58 @@ new #[Layout('components.layouts.admin')] #[Title('Kelola Pelanggan - Ran CukurI
  </div>
  
  @if($showModal)
- <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
- <div class="bg-surface-container rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-white/10 max-h-[90vh] overflow-y-auto">
- <div class="px-4 lg:px-5 py-4 border-b border-white/10 flex justify-between items-center bg-surface-container-lowest sticky top-0 z-10">
- <h3 class="font-headline-md text-on-surface text-headline-md">{{ $isEdit ? 'Edit Pelanggan' : 'Tambah Pelanggan Baru' }}</h3>
- <button wire:click="$set('showModal', false)" class="text-on-surface-variant hover:text-error transition-colors">
- <span class="material-symbols-outlined">close</span>
- </button>
- </div>
- <form wire:submit="save" class="p-4 lg:p-5 space-y-4">
- <div class="space-y-2">
- <label class="block font-label-md text-label-md text-on-surface">Nama Lengkap</label>
- <input wire:model="nama" type="text" class="w-full bg-background rounded-xl py-3 px-4 font-body-md text-body-md text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
- @error('nama') <span class="text-error text-sm">{{ $message }}</span> @enderror
- </div>
- 
- <div class="space-y-2">
- <label class="block font-label-md text-label-md text-on-surface">Email</label>
- <input wire:model="email" type="email" class="w-full bg-background rounded-xl py-3 px-4 font-body-md text-body-md text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
- @error('email') <span class="text-error text-sm">{{ $message }}</span> @enderror
- </div>
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-3 sm:p-4 md:p-6 overflow-y-auto">
+            <div class="bg-surface-container rounded-2xl shadow-2xl w-full max-w-xl max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden border border-white/10 animate-[scale-up_0.2s_ease-out]">
+                <!-- Sticky Header -->
+                <div class="px-4 py-3 sm:px-5 sm:py-4 border-b border-white/10 flex justify-between items-center bg-surface-container-lowest shrink-0">
+                    <h3 class="font-headline-md text-base sm:text-lg font-bold text-on-surface">{{ $isEdit ? 'Edit Pelanggan' : 'Tambah Pelanggan Baru' }}</h3>
+                    <button wire:click="$set('showModal', false)" class="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:text-error hover:bg-white/5 transition-colors">
+                        <span class="material-symbols-outlined text-[20px]">close</span>
+                    </button>
+                </div>
 
- <div class="space-y-2">
- <label class="block font-label-md text-label-md text-on-surface">No HP</label>
- <input wire:model="no_hp" type="text" class="w-full bg-background rounded-xl py-3 px-4 font-body-md text-body-md text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors">
- @error('no_hp') <span class="text-error text-sm">{{ $message }}</span> @enderror
- </div>
+                <form wire:submit="save" class="flex flex-col flex-1 overflow-hidden min-h-0">
+                    <!-- Scrollable Body -->
+                    <div class="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                            <div class="space-y-1.5">
+                                <label class="block font-label-md text-xs font-semibold text-on-surface">Nama Lengkap</label>
+                                <input wire:model="nama" type="text" class="w-full bg-background rounded-xl py-2.5 px-3.5 font-body-md text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
+                                @error('nama') <span class="text-error text-xs">{{ $message }}</span> @enderror
+                            </div>
+                            
+                            <div class="space-y-1.5">
+                                <label class="block font-label-md text-xs font-semibold text-on-surface">Email</label>
+                                <input wire:model="email" type="email" class="w-full bg-background rounded-xl py-2.5 px-3.5 font-body-md text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
+                                @error('email') <span class="text-error text-xs">{{ $message }}</span> @enderror
+                            </div>
+                        </div>
 
- <!-- Removed role dropdown, role is always Pelanggan -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                            <div class="space-y-1.5">
+                                <label class="block font-label-md text-xs font-semibold text-on-surface">No HP</label>
+                                <input wire:model="no_hp" type="text" class="w-full bg-background rounded-xl py-2.5 px-3.5 font-body-md text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors">
+                                @error('no_hp') <span class="text-error text-xs">{{ $message }}</span> @enderror
+                            </div>
 
- <div class="space-y-2">
- <label class="block font-label-md text-label-md text-on-surface">Kata Sandi {{ $isEdit ? '(Kosongkan jika tidak ingin diubah)' : '' }}</label>
- <input wire:model="password" type="password" class="w-full bg-background rounded-xl py-3 px-4 font-body-md text-body-md text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" {{ $isEdit ? '' : 'required' }}>
- @error('password') <span class="text-error text-sm">{{ $message }}</span> @enderror
- </div>
- 
- <div class="pt-6 flex justify-end gap-3 border-t border-white/10 mt-6">
- <button type="button" wire:click="$set('showModal', false)" class="px-4 lg:px-5 py-2.5 rounded-full font-label-md text-label-md text-on-surface-variant hover:bg-surface-container-highest transition-colors">Batal</button>
- <button type="submit" class="px-4 lg:px-5 py-2.5 rounded-full font-label-md text-label-md bg-primary text-on-primary hover:bg-primary-container hover:text-on-primary-container transition-colors shadow-lg shadow-primary/20">
- <span wire:loading.remove wire:target="save">Simpan Pelanggan</span>
- <span wire:loading wire:target="save">Menyimpan...</span>
- </button>
- </div>
- </form>
- </div>
- </div>
- @endif
+                            <div class="space-y-1.5">
+                                <label class="block font-label-md text-xs font-semibold text-on-surface">Kata Sandi {{ $isEdit ? '(Kosongkan jika tidak ingin diubah)' : '' }}</label>
+                                <input wire:model="password" type="password" class="w-full bg-background rounded-xl py-2.5 px-3.5 font-body-md text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" {{ $isEdit ? '' : 'required' }}>
+                                @error('password') <span class="text-error text-xs">{{ $message }}</span> @enderror
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Sticky Footer -->
+                    <div class="px-4 py-3 sm:px-5 sm:py-3.5 border-t border-white/10 bg-surface-container-lowest shrink-0 flex justify-end gap-2 sm:gap-3">
+                        <button type="button" wire:click="$set('showModal', false)" class="px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl font-label-md text-xs font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors">Batal</button>
+                        <button type="submit" class="px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl font-label-md text-xs font-semibold bg-primary text-on-primary hover:bg-primary-container transition-all flex items-center gap-1.5 shadow-md">
+                            <span wire:loading.remove wire:target="save">{{ $isEdit ? 'Simpan Perubahan' : 'Simpan Pelanggan' }}</span>
+                            <span wire:loading wire:target="save">Menyimpan...</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    @endif
 </div>
-

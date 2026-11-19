@@ -886,11 +886,10 @@ new #[Layout('components.layouts.admin')] #[Title('Kelola Absensi Kehadiran - Ra
         @php
             $mDayCarbon = \Carbon\Carbon::parse($selectedDay);
         @endphp
-        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
-            <div class="bg-surface-container rounded-2xl border border-outline-variant/40 shadow-2xl max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
-                
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/75 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200">
+            <div class="bg-surface-container rounded-2xl border border-outline-variant/40 shadow-2xl max-w-lg w-full max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
                 <!-- Modal Header -->
-                <div class="p-5 bg-surface-container-high flex items-center justify-between border-b border-surface-container-highest">
+                <div class="px-4 py-3 sm:px-5 sm:py-4 bg-surface-container-high flex items-center justify-between border-b border-surface-container-highest shrink-0">
                     <div class="flex items-center gap-3">
                         <div class="w-10 h-10 rounded-full bg-primary/20 text-primary flex items-center justify-center">
                             <span class="material-symbols-outlined text-[22px]">event</span>
@@ -988,10 +987,9 @@ new #[Layout('components.layouts.admin')] #[Title('Kelola Absensi Kehadiran - Ra
 
     <!-- MODAL FORM CATAT / EDIT ABSENSI -->
     @if($showModal)
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            <div class="bg-surface-container rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-outline-variant/40 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
-                
-                <div class="px-5 py-4 border-b border-surface-container-highest flex justify-between items-center bg-surface-container-high sticky top-0 z-10">
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-3 sm:p-4 md:p-6 overflow-y-auto animate-in fade-in duration-200">
+            <div class="bg-surface-container rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden border border-outline-variant/40 animate-in zoom-in-95 duration-200">
+                <div class="px-4 py-3 sm:px-5 sm:py-4 border-b border-surface-container-highest flex justify-between items-center bg-surface-container-high shrink-0">
                     <div class="flex items-center gap-2.5">
                         <div class="w-8 h-8 rounded-full bg-primary/20 text-primary flex items-center justify-center">
                             <span class="material-symbols-outlined text-[20px]">{{ $isEdit ? 'edit' : 'how_to_reg' }}</span>
@@ -1003,7 +1001,8 @@ new #[Layout('components.layouts.admin')] #[Title('Kelola Absensi Kehadiran - Ra
                     </button>
                 </div>
 
-                <form wire:submit="save" class="p-5 space-y-4">
+                <form wire:submit="save" class="flex flex-col flex-1 overflow-hidden min-h-0">
+                    <div class="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
                     <!-- Pilih Staf -->
                     <div class="space-y-1.5">
                         <label class="block font-label-md text-xs font-bold text-on-surface uppercase tracking-wider">Pilih Kapster / Staf</label>

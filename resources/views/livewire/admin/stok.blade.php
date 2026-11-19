@@ -314,53 +314,59 @@ new #[Layout('components.layouts.admin')] #[Title('Lapor Ekstra Barang & Mutasi 
 
     <!-- Modal Form Catat Mutasi / Lapor Ekstra -->
     @if($showModal)
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div class="bg-surface-container rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-outline-variant/30 max-h-[90vh] overflow-y-auto">
-                <div class="px-5 py-4 border-b border-outline-variant/20 flex justify-between items-center bg-surface-container-lowest sticky top-0 z-10">
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-3 sm:p-4 md:p-6 overflow-y-auto">
+            <div class="bg-surface-container rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden border border-outline-variant/30 animate-[scale-up_0.2s_ease-out]">
+                <!-- Sticky Header -->
+                <div class="px-4 py-3 sm:px-5 sm:py-4 border-b border-outline-variant/20 flex justify-between items-center bg-surface-container-lowest shrink-0">
                     <div class="flex items-center gap-2">
                         <span class="material-symbols-outlined text-primary text-xl">edit_note</span>
-                        <h3 class="font-bold text-base text-on-surface">Lapor Ekstra Barang / Catat Mutasi</h3>
+                        <h3 class="font-bold text-sm sm:text-base text-on-surface">Lapor Ekstra Barang / Catat Mutasi</h3>
                     </div>
-                    <button wire:click="$set('showModal', false)" class="text-on-surface-variant hover:text-error transition-colors cursor-pointer">
+                    <button wire:click="$set('showModal', false)" class="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:text-error hover:bg-white/5 transition-colors cursor-pointer">
                         <span class="material-symbols-outlined text-xl">close</span>
                     </button>
                 </div>
-                <form wire:submit="save" class="p-5 space-y-4">
-                    <div class="space-y-1.5">
-                        <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Pilih Barang</label>
-                        <select wire:model.live="barang_id" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors cursor-pointer" required>
-                            <option value="">-- Pilih Barang --</option>
-                            @foreach($barangs as $b)
-                                <option value="{{ $b->id }}">{{ $b->nama_barang }} (Sisa Stok: {{ $b->stok_sekarang }} Pcs)</option>
-                            @endforeach
-                        </select>
-                        @error('barang_id') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
-                    </div>
-                    
-                    <div class="space-y-1.5">
-                        <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Jenis Aktivitas Mutasi</label>
-                        <select wire:model.live="jenis_mutasi" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors cursor-pointer" required>
-                            <option value="keluar">Pengeluaran (Lapor Ekstra / Pemakaian Kapster / Rusak)</option>
-                            <option value="masuk">Pemasukan (Restok / Pembelian Baru)</option>
-                        </select>
-                        @error('jenis_mutasi') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
+
+                <form wire:submit="save" class="flex flex-col flex-1 overflow-hidden min-h-0">
+                    <!-- Scrollable Body -->
+                    <div class="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
+                        <div class="space-y-1.5">
+                            <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Pilih Barang</label>
+                            <select wire:model.live="barang_id" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors cursor-pointer" required>
+                                <option value="">-- Pilih Barang --</option>
+                                @foreach($barangs as $b)
+                                    <option value="{{ $b->id }}">{{ $b->nama_barang }} (Sisa Stok: {{ $b->stok_sekarang }} {{ $b->satuan ?? 'Pcs' }})</option>
+                                @endforeach
+                            </select>
+                            @error('barang_id') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
+                        </div>
+                        
+                        <div class="space-y-1.5">
+                            <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Jenis Aktivitas Mutasi</label>
+                            <select wire:model.live="jenis_mutasi" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors cursor-pointer" required>
+                                <option value="keluar">Pengeluaran (Lapor Ekstra / Pemakaian Kapster / Rusak)</option>
+                                <option value="masuk">Pemasukan (Restok / Pembelian Baru)</option>
+                            </select>
+                            @error('jenis_mutasi') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Jumlah (Qty / Pcs)</label>
+                            <input wire:model="jumlah" type="number" min="1" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" placeholder="1" required>
+                            @error('jumlah') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Keterangan / Alasan</label>
+                            <textarea wire:model="keterangan" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" rows="2" placeholder="Tulis rincian pemakaian bahan atau restok..." required></textarea>
+                            @error('keterangan') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
+                        </div>
                     </div>
 
-                    <div class="space-y-1.5">
-                        <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Jumlah (Qty / Pcs)</label>
-                        <input wire:model="jumlah" type="number" min="1" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
-                        @error('jumlah') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
-                    </div>
-                    
-                    <div class="space-y-1.5">
-                        <label class="block text-xs font-semibold text-on-surface uppercase tracking-wider">Keterangan / Alasan (Opsional)</label>
-                        <textarea wire:model="keterangan" class="w-full bg-background rounded-xl py-2.5 px-3.5 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" rows="2" placeholder="Cth: Pemakaian silet cukur ekstra pelanggan, tisu leher, atau restok baru"></textarea>
-                        @error('keterangan') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
-                    </div>
-                    
-                    <div class="pt-4 flex justify-end gap-3 border-t border-outline-variant/20 mt-6">
-                        <button type="button" wire:click="$set('showModal', false)" class="px-4 py-2 rounded-xl text-xs font-semibold text-on-surface-variant hover:bg-surface-container-highest transition-colors cursor-pointer">Batal</button>
-                        <button type="submit" wire:loading.attr="disabled" class="px-5 py-2 rounded-xl text-xs font-semibold bg-primary text-on-primary hover:bg-primary-container hover:text-on-primary-container transition-colors shadow-md shadow-primary/20 cursor-pointer">
+                    <!-- Sticky Footer -->
+                    <div class="px-4 py-3 sm:px-5 sm:py-3.5 border-t border-outline-variant/20 bg-surface-container-lowest shrink-0 flex justify-end gap-2 sm:gap-3">
+                        <button type="button" wire:click="$set('showModal', false)" class="px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl font-label-md text-xs font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors">Batal</button>
+                        <button type="submit" class="px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl font-label-md text-xs font-semibold bg-primary text-on-primary hover:bg-primary-container transition-all flex items-center gap-1.5 shadow-md">
                             <span wire:loading.remove wire:target="save">Simpan Mutasi</span>
                             <span wire:loading wire:target="save">Menyimpan...</span>
                         </button>
