@@ -42,11 +42,12 @@ new #[Layout('components.layouts.app')] #[Title('Buat Kata Sandi Baru - Ran Cuku
  }
  );
 
- if ($status == Password::PASSWORD_RESET) {
- $this->redirect(route('login', absolute: false));
- } else {
- $this->addError('email', __($status));
- }
+        if ($status == Password::PASSWORD_RESET) {
+            session()->flash('status', 'Kata sandi Anda berhasil diperbarui! Silakan masuk dengan kata sandi baru Anda.');
+            $this->redirect(route('login', absolute: false));
+        } else {
+            $this->addError('email', 'Token reset kata sandi tidak valid atau telah kedaluwarsa.');
+        }
  }
 };
 ?>

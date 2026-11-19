@@ -17,11 +17,11 @@ new #[Layout('components.layouts.app')] #[Title('Lupa Kata Sandi - Ran CukurIn')
  ['email' => $this->email]
  );
 
- if ($status === Password::RESET_LINK_SENT) {
- $this->status = __($status);
- } else {
- $this->addError('email', __($status));
- }
+        if ($status === Password::RESET_LINK_SENT) {
+            $this->status = 'Tautan reset kata sandi telah berhasil dikirimkan ke email Anda! Silakan periksa kotak masuk atau folder spam Anda.';
+        } else {
+            $this->addError('email', 'Alamat email tidak ditemukan dalam catatan kami.');
+        }
  }
 };
 ?>

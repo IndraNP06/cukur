@@ -15,6 +15,50 @@ Volt::route('/register', 'auth.register')->name('register')->middleware('guest')
 Volt::route('/forgot-password', 'auth.forgot-password')->name('password.request')->middleware('guest');
 Volt::route('/reset-password/{token}', 'auth.reset-password')->name('password.reset')->middleware('guest');
 
+// Email Verification Routes
+Volt::route('/email/verify', 'auth.verify-email')->name('verification.notice')->middleware('auth');
+
+Route::get('/email/verify/{id}/{hash}', function (\Illuminate\Http\Request $request, $id, $hash) {
+    $user = \App\Models\User::findOrFail($id);
+
+    if (! hash_equals((string) $hash, sha1($user->getEmailForVerification()))) {
+        abort(403, 'Tautan verifikasi tidak valid.');
+    }
+
+    if ($user->hasVerifiedEmail()) {
+        if (auth()->check()) {
+            return redirect()->route('dashboard')->with('status', 'Email Anda sudah terverifikasi sebelumnya.');
+        }
+        return redirect()->route('login')->with('status', 'Email Anda sudah terverifikasi sebelumnya. Silakan masuk.');
+    }
+
+    if ($user->markEmailAsVerified()) {
+        event(new \Illuminate\Auth\Events\Verified($user));
+        
+        try {
+            app(\App\Services\GoogleSheetsService::class)->updateRow('pengguna', $user->id, [
+                'updated_at' => now()->toDateTimeString(),
+            ]);
+        } catch (\Throwable $e) {}
+    }
+
+    if (!auth()->check()) {
+        auth()->login($user);
+    }
+
+    return redirect()->route('customer.dashboard')->with('status', 'Selamat! Email Anda berhasil diverifikasi. Akun Anda kini aktif sepenuhnya.');
+})->middleware(['signed'])->name('verification.verify');
+
+Route::post('/email/verification-notification', function (\Illuminate\Http\Request $request) {
+    if ($request->user()->hasVerifiedEmail()) {
+        return redirect()->intended(route('dashboard'));
+    }
+
+    $request->user()->sendEmailVerificationNotification();
+
+    return back()->with('status', 'verification-link-sent');
+})->middleware(['auth', 'throttle:6,1'])->name('verification.send');
+
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', function () {
         $user = auth()->user();

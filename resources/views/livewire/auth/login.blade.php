@@ -21,6 +21,12 @@ new #[Layout('components.layouts.app')] #[Title('Masuk - Ran CukurIn')] class ex
 
         if (Auth::attempt($credentials, $this->remember)) {
             Session::regenerate();
+
+            $user = Auth::user();
+            if ($user && $user->role === 'Pelanggan' && ! $user->hasVerifiedEmail()) {
+                $this->redirect(route('verification.notice', absolute: false));
+                return;
+            }
             
             $this->redirectIntended(route('dashboard'));
         } else {
@@ -69,6 +75,13 @@ new #[Layout('components.layouts.app')] #[Title('Masuk - Ran CukurIn')] class ex
                     <h2 class="font-headline-xl text-on-surface text-headline-xl">Selamat Datang Kembali</h2>
                     <p class="font-body-md text-body-md text-on-surface-variant">Silakan masuk ke akun Anda untuk melanjutkan.</p>
                 </div>
+
+                @if (session('status'))
+                    <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-start gap-2.5">
+                        <span class="material-symbols-outlined text-emerald-400 text-[20px] shrink-0">check_circle</span>
+                        <div class="font-medium">{{ session('status') }}</div>
+                    </div>
+                @endif
 
                 <form wire:submit="login" class="space-y-6">
                     @if ($errors->has('email'))

@@ -155,6 +155,34 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
+    if (action === "send_email") {
+      var to = payload.to;
+      var subject = payload.subject || "Pemberitahuan Ran CukurIn";
+      var html = payload.html || payload.body || "";
+      var plainText = payload.text || html.replace(/<[^>]*>/g, "");
+      var senderName = payload.from || "Ran CukurIn Barbershop";
+
+      if (!to) {
+        return ContentService.createTextOutput(JSON.stringify({
+          success: false,
+          message: "Parameter 'to' wajib diisi"
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+
+      MailApp.sendEmail({
+        to: to,
+        subject: subject,
+        htmlBody: html,
+        body: plainText,
+        name: senderName
+      });
+
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
+        message: "Email berhasil dikirim ke " + to
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
     return ContentService.createTextOutput(JSON.stringify({
       success: false,
       message: "Action tidak dikenali"

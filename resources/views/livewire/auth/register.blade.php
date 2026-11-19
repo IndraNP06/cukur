@@ -34,13 +34,25 @@ new #[Layout('components.layouts.app')] #[Title('Daftar Akun Baru - Ran CukurIn'
  'role' => 'Pelanggan',
  ]);
  
- $user->assignRole('Pelanggan');
+ try {
+     $user->assignRole('Pelanggan');
+ } catch (\Throwable $e) {}
+
+ try {
+     app(\App\Services\GoogleSheetsService::class)->appendRow('pengguna', [
+         'id' => $user->id,
+         'nama' => $user->nama,
+         'email' => $user->email,
+         'role' => 'Pelanggan',
+         'created_at' => now()->toDateTimeString(),
+     ]);
+ } catch (\Throwable $e) {}
 
  event(new Registered($user));
 
  Auth::login($user);
 
- $this->redirect(route('customer.dashboard', absolute: false));
+ $this->redirect(route('verification.notice', absolute: false));
  }
 };
 ?>

@@ -1,12 +1,13 @@
 <?php
 namespace App\Models;
 
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
     use HasFactory, Notifiable, HasRoles;
 
@@ -15,6 +16,7 @@ class User extends Authenticatable
     protected $fillable = [
         'nama',
         'email',
+        'email_verified_at',
         'password',
         'no_hp',
         'role',
@@ -41,7 +43,24 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
+            'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    /**
+     * Kirim notifikasi verifikasi email dengan template kustom Ran CukurIn
+     */
+    public function sendEmailVerificationNotification(): void
+    {
+        $this->notify(new \App\Notifications\RanCukurinVerifyEmail);
+    }
+
+    /**
+     * Kirim notifikasi reset password dengan template kustom Ran CukurIn
+     */
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->notify(new \App\Notifications\RanCukurinResetPassword($token));
     }
 }

@@ -30,5 +30,10 @@ class AppServiceProvider extends ServiceProvider
                 $modelClass::observe(\App\Observers\GoogleSheetsSyncObserver::class);
             }
         }
+
+        // Daftarkan custom email channel untuk pengiriman multi-driver (SMTP / Webhook / Log)
+        \Illuminate\Support\Facades\Notification::extend('custom_email', function ($app) {
+            return new \App\Notifications\Channels\CustomEmailChannel();
+        });
     }
 }

@@ -71,6 +71,9 @@ $app->make(ConsoleKernel::class)->bootstrap();
 // Jika database baru disalin dari bundle, segera tarik antrean aktif terbaru dari Google Sheets
 if ($copiedDb) {
     try {
+        if (!\Illuminate\Support\Facades\Schema::hasColumn('pengguna', 'email_verified_at')) {
+            Artisan::call('migrate', ['--force' => true]);
+        }
         app(\App\Services\GoogleSheetsService::class)->pullActiveAntrean();
     } catch (\Throwable $e) {
         // Abaikan jika network timeout
