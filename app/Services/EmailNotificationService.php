@@ -17,10 +17,35 @@ class EmailNotificationService
     public static function send(string $to, string $subject, string $htmlBody, ?string $plainText = null): array
     {
         $plainText = $plainText ?? strip_tags($htmlBody);
-        $fromAddress = config('mail.from.address', env('MAIL_FROM_ADDRESS', 'no-reply@rancukurin.com'));
+        $fromAddress = config('mail.from.address', env('MAIL_FROM_ADDRESS', 'onboarding@resend.dev'));
         $fromName = config('mail.from.name', env('MAIL_FROM_NAME', 'Ran CukurIn Barbershop'));
 
-        // 1. Coba kirim via SMTP jika dikonfigurasi
+        // 1. Coba kirim via Resend API (HTTP) jika RESEND_API_KEY tersedia atau MAIL_PASSWORD menggunakan API Key Resend (re_...)
+        $resendApiKey = env('RESEND_API_KEY') ?: (str_starts_with((string)env('MAIL_PASSWORD', ''), 're_') ? env('MAIL_PASSWORD') : null);
+        if (!empty($resendApiKey)) {
+            try {
+                $response = Http::withHeaders([
+                    'Authorization' => 'Bearer ' . $resendApiKey,
+                    'Content-Type' => 'application/json',
+                ])->timeout(10)->post('https://api.resend.com/emails', [
+                    'from' => "{$fromName} <{$fromAddress}>",
+                    'to' => [$to],
+                    'subject' => $subject,
+                    'html' => $htmlBody,
+                    'text' => $plainText,
+                ]);
+
+                if ($response->successful()) {
+                    Log::info("Email berhasil dikirim via Resend API ke: {$to} [Subject: {$subject}]");
+                    return ['success' => true, 'driver' => 'resend', 'message' => 'Email berhasil dikirim via Resend'];
+                }
+                Log::warning("Resend API warning: " . $response->body());
+            } catch (\Throwable $e) {
+                Log::warning("Pengiriman email via Resend API gagal, mencoba driver berikutnya: " . $e->getMessage());
+            }
+        }
+
+        // 2. Coba kirim via SMTP jika dikonfigurasi
         $mailer = config('mail.default', env('MAIL_MAILER', 'log'));
         $smtpUser = config('mail.mailers.smtp.username', env('MAIL_USERNAME'));
 
