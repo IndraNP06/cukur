@@ -1214,7 +1214,7 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
                         @endif
                     </div>
                 </div>
-                </div>
+
                 <!-- Footer -->
                 <div class="px-4 py-3 sm:px-5 sm:py-3.5 bg-surface-container-highest border-t border-outline-variant/30 flex items-center justify-end gap-2 sm:gap-3 shrink-0">
                     <button wire:click="$set('showWalkInModal', false)" type="button" class="px-4 py-2 text-xs font-semibold text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer">
@@ -1366,7 +1366,6 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
                             </div>
                         @endif
                     </div>
-                </div>
                 </div>
 
                 <!-- Footer -->

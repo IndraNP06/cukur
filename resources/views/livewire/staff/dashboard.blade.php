@@ -793,7 +793,6 @@ new #[Layout('components.layouts.admin')]
                         @endif
                     </div>
                 </div>
-                </div>
                 <!-- Footer -->
                 <div class="px-4 py-3 sm:px-5 sm:py-3.5 bg-surface-container-highest border-t border-outline-variant/30 flex items-center justify-end gap-2 sm:gap-3 shrink-0">
                     <button wire:click="$set('showWalkInModal', false)" type="button"
