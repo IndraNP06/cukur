@@ -1,25 +1,49 @@
 /**
- * GOOGLE APPS SCRIPT UNTUK DATABASE GOOGLE SPREADSHEETS (RAN CUKURIN APP)
+ * GOOGLE APPS SCRIPT UNTUK DATABASE GOOGLE SPREADSHEETS & PENGIRIMAN EMAIL (RAN CUKURIN APP)
  * 
- * CARA PEMASANGAN (Hanya butuh 1 menit):
+ * CARA PEMASANGAN / PEMBARUAN (Hanya butuh 1-2 menit):
  * 1. Buka spreadsheet Anda:
  *    https://docs.google.com/spreadsheets/d/16oP7uh_2RwNdQwW7ZBJFk12gq0Lv94dH4xPxU54ub0k/edit
  * 2. Klik menu "Extensions" (Ekstensi) > "Apps Script".
- * 3. Hapus kode default (jika ada), lalu tempel (paste) seluruh isi kode ini.
- * 4. Klik tombol "Save" (ikon disket) di atas.
- * 5. Klik tombol "Deploy" (di kanan atas) > pilih "New deployment".
- * 6. Di jendela deployment:
- *    - Klik ikon gerigi (Select type) > pilih "Web app".
- *    - Description: "Ran Cukurin API".
- *    - Execute as: "Me" (email Anda).
- *    - Who has access: "Anyone" (Siapa saja). -> PENTING agar Laravel bisa kirim data!
- * 7. Klik "Deploy". Jika diminta otorisasi izin ("Authorize access"), pilih akun Google Anda dan klik "Allow".
- * 8. Salin "Web app URL" (bentuknya: https://script.google.com/macros/s/.../exec).
- * 9. Tempelkan URL tersebut ke file .env aplikasi Laravel Anda:
- *    GOOGLE_SHEETS_WEBHOOK_URL="https://script.google.com/macros/s/..."
- * 10. Jalankan perintah di terminal Laravel untuk sinkronisasi otomatis:
- *    php artisan sheets:sync
+ * 3. Hapus seluruh kode lama di editor, lalu tempel (paste) seluruh isi file kode ini.
+ * 4. Klik tombol "Save" (ikon disket).
+ * 
+ * --- [PENTING: AKTIVASI IZIN EMAIL (Wajib 1x)] ---
+ * 5. Di toolbar atas sebelah tombol "Debug", perhatikan dropdown fungsi.
+ *    Pilih fungsi: "otorisasiIzinEmail"
+ * 6. Klik tombol "Run" (Jalankan).
+ * 7. Google akan memunculkan dialog "Authorization required" (Otorisasi diperlukan):
+ *    - Klik "Review Permissions" (Tinjau Izin).
+ *    - Pilih Akun Google Anda.
+ *    - Klik "Advanced" (Lanjutan) di kiri bawah.
+ *    - Klik "Go to Ran Cukurin API (unsafe)" / "Buka Ran Cukurin (tidak aman)".
+ *    - Klik "Allow" (Izinkan).
+ *    (Email uji coba akan langsung masuk ke Gmail Anda).
+ * 
+ * --- [DEPLOY VERSI BARU KE WEB APP] ---
+ * 8. Klik tombol "Deploy" (di kanan atas) > pilih "Manage deployments" (Kelola penerapan).
+ * 9. Klik ikon Pensil (Edit) di samping penerapan aktif Anda.
+ * 10. Di dropdown "Version", pilih "New version" (Versi baru).
+ * 11. Klik tombol "Deploy". Selesai!
  */
+
+/**
+ * Fungsi pembantu untuk memicu dialog izin kirim email Google (MailApp).
+ * Jalankan fungsi ini 1x dari editor Apps Script sebelum melakukan deploy!
+ */
+function otorisasiIzinEmail() {
+  var emailSaya = Session.getActiveUser().getEmail();
+  MailApp.sendEmail({
+    to: emailSaya,
+    subject: "Uji Coba Aktivasi Izin Email - Ran CukurIn",
+    htmlBody: "<div style='font-family:sans-serif;padding:20px;background:#f3f4f6;border-radius:10px;'>" +
+              "<h2 style='color:#f59e0b;'>Ran CukurIn Barbershop</h2>" +
+              "<p>Selamat! Otorisasi pengiriman email Google Apps Script berhasil diaktifkan.</p>" +
+              "<p>Aplikasi Ran CukurIn sekarang sudah dapat mengirim email reset password dan verifikasi pendaftaran langsung ke kotak masuk.</p>" +
+              "</div>"
+  });
+  Logger.log("Email uji coba berhasil dikirim ke: " + emailSaya);
+}
 
 function doPost(e) {
   var lock = LockService.getScriptLock();
