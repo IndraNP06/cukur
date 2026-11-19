@@ -60,7 +60,22 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
         $this->showWalkInModal = true;
     }
 
+        public function setWalkInTime($time) {
+        $this->walkInTime = $time;
+        $this->resetErrorBag('walkInTime');
+    }
+
+    public function setRescheduleTime($time) {
+        $this->rescheduleTime = $time;
+        $this->resetErrorBag('rescheduleTime');
+    }
+
     public function setWalkInTimeNow() {
+        $this->walkInTime = now()->format('H:i');
+        $this->resetErrorBag('walkInTime');
+    }
+    // old setWalkInTimeNow replaced
+    private function _dummySetWalkIn() {
         $this->walkInTime = now()->format('H:i:s');
     }
 
@@ -230,6 +245,14 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
             'rescheduleKapsterId.required' => 'Kapster bertugas wajib dipilih.',
         ]);
 
+        $antreanCheck = AntreanPemesanan::find($this->rescheduleAntreanId);
+        $durasiReschedule = ($antreanCheck && $antreanCheck->layanan) ? $antreanCheck->layanan->estimasi_durasi_menit : 30;
+        $resConflict = \App\Models\AntreanPemesanan::checkConflict($this->rescheduleTanggal, $this->rescheduleTime, $durasiReschedule, $this->rescheduleKapsterId, $this->rescheduleAntreanId);
+        if ($resConflict) {
+            $this->addError('rescheduleTime', $resConflict['message']);
+            return;
+        }
+
         $antrean = AntreanPemesanan::find($this->rescheduleAntreanId);
         if (!$antrean) {
             session()->flash('sync_error', 'Antrean tidak ditemukan.');
@@ -335,6 +358,21 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
             'walkInKapster' => 'required',
             'walkInTime' => 'required'
         ]);
+
+        $tanggalWalkInCheck = now()->format('Y-m-d');
+        if ($this->filterTanggal === 'tomorrow') {
+            $tanggalWalkInCheck = now()->addDay()->format('Y-m-d');
+        } elseif ($this->filterTanggal === 'custom' && !empty($this->customTanggal)) {
+            $tanggalWalkInCheck = $this->customTanggal;
+        }
+
+        $layananModel = Layanan::find($this->walkInLayanan);
+        $durasi = $layananModel ? $layananModel->estimasi_durasi_menit : 30;
+        $conflict = \App\Models\AntreanPemesanan::checkConflict($tanggalWalkInCheck, $this->walkInTime, $durasi, $this->walkInKapster);
+        if ($conflict) {
+            $this->addError('walkInTime', $conflict['message']);
+            return;
+        }
 
         try {
             $dummyEmail = 'walkin_' . time() . '_' . Str::random(5) . '@rancukurin.local';
@@ -507,6 +545,49 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
         $totalSelesaiCount = $selesaiQuery->count();
         $selesai = $selesaiQuery->orderByDesc('updated_at')->take(30)->get();
 
+        $walkInTanggal = now()->format('Y-m-d');
+        if ($this->filterTanggal === 'tomorrow') {
+            $walkInTanggal = now()->addDay()->format('Y-m-d');
+        } elseif ($this->filterTanggal === 'custom' && !empty($this->customTanggal)) {
+            $walkInTanggal = $this->customTanggal;
+        }
+        $walkInBookedSlots = \App\Models\AntreanPemesanan::getBookedSlots($walkInTanggal, $this->walkInKapster);
+
+        $walkInDurasi = 30;
+        if ($this->walkInLayanan) {
+            $l = Layanan::find($this->walkInLayanan);
+            if ($l) $walkInDurasi = $l->estimasi_durasi_menit;
+        }
+        $walkInConflict = null;
+        $walkInEstimasiSelesai = null;
+        if ($this->walkInTime) {
+            $walkInConflict = \App\Models\AntreanPemesanan::checkConflict($walkInTanggal, $this->walkInTime, $walkInDurasi, $this->walkInKapster);
+            try {
+                $rawParts = explode(':', trim($this->walkInTime));
+                $pStart = \Carbon\Carbon::createFromFormat('H:i', sprintf('%02d:%02d', (int)$rawParts[0], (int)$rawParts[1]));
+                $walkInEstimasiSelesai = $pStart->copy()->addMinutes($walkInDurasi)->format('H:i');
+            } catch (\Throwable $e) {}
+        }
+
+        $rescheduleBookedSlots = [];
+        $rescheduleConflict = null;
+        $rescheduleEstimasiSelesai = null;
+        if ($this->showRescheduleModal && $this->rescheduleAntreanId) {
+            $rescheduleBookedSlots = \App\Models\AntreanPemesanan::getBookedSlots($this->rescheduleTanggal, $this->rescheduleKapsterId, $this->rescheduleAntreanId);
+            $resDurasi = 30;
+            if ($this->activeSelectedAntrean && $this->activeSelectedAntrean->layanan) {
+                $resDurasi = $this->activeSelectedAntrean->layanan->estimasi_durasi_menit;
+            }
+            if ($this->rescheduleTime) {
+                $rescheduleConflict = \App\Models\AntreanPemesanan::checkConflict($this->rescheduleTanggal, $this->rescheduleTime, $resDurasi, $this->rescheduleKapsterId, $this->rescheduleAntreanId);
+                try {
+                    $rawParts = explode(':', trim($this->rescheduleTime));
+                    $pStart = \Carbon\Carbon::createFromFormat('H:i', sprintf('%02d:%02d', (int)$rawParts[0], (int)$rawParts[1]));
+                    $rescheduleEstimasiSelesai = $pStart->copy()->addMinutes($resDurasi)->format('H:i');
+                } catch (\Throwable $e) {}
+            }
+        }
+
         return [
             'isKapster' => $isKapster,
             'isOwner' => $isOwner,
@@ -520,12 +601,12 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
             'totalSelesaiCount' => $totalSelesaiCount,
             'today' => $today,
             'tomorrow' => $tomorrow,
-            'timeSlots' => [
-                '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', 
-                '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
-                '15:00', '15:30', '16:00', '16:30', '17:00', '17:30',
-                '18:00', '18:30', '19:00', '19:30', '20:00'
-            ]
+            'walkInBookedSlots' => $walkInBookedSlots,
+            'walkInConflict' => $walkInConflict,
+            'walkInEstimasiSelesai' => $walkInEstimasiSelesai,
+            'rescheduleBookedSlots' => $rescheduleBookedSlots,
+            'rescheduleConflict' => $rescheduleConflict,
+            'rescheduleEstimasiSelesai' => $rescheduleEstimasiSelesai,
         ];
     }
 };
@@ -1053,28 +1134,86 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
                             @error('walkInKapster') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
                         </div>
                     </div>
-                    <!-- Time Slot Grid -->
-                    <div class="space-y-2 pt-2">
-                        <label class="block text-xs uppercase font-bold text-on-surface-variant tracking-wider">Pilih Jam</label>
-                        <div class="grid grid-cols-4 gap-2">
-                            <label class="cursor-pointer col-span-2" wire:click="setWalkInTimeNow">
-                                <input wire:model="walkInTime" value="{{ now()->format('H:i:s') }}" class="peer sr-only" type="radio">
-                                <div class="py-2 rounded-lg border border-outline-variant/30 bg-surface-container text-on-surface text-center hover:bg-surface-container-high transition-colors text-xs font-mono peer-checked:border-primary peer-checked:bg-primary/15 peer-checked:text-primary font-bold flex items-center justify-center gap-1">
-                                    <span class="material-symbols-outlined text-sm">schedule</span>
-                                    <span>Sekarang ({{ now()->format('H:i') }})</span>
+                    <!-- Manual Time Selection -->
+                    <div class="p-4 rounded-xl bg-surface-container border border-outline-variant/30 space-y-3">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div>
+                                <label class="block text-xs uppercase font-bold text-on-surface-variant tracking-wider">Jam Mulai (Manual)</label>
+                                <p class="text-[11px] text-on-surface-variant">Atur jam mulai kedatangan pelanggan secara manual.</p>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <div class="relative">
+                                    <input type="time" wire:model.live.debounce.300ms="walkInTime" class="bg-surface-container-high border {{ $walkInConflict ? 'border-rose-500 text-rose-400' : 'border-outline-variant/50 text-primary' }} focus:border-primary rounded-xl px-3 py-2 text-center text-base font-mono font-bold outline-none transition-all">
                                 </div>
-                            </label>
-                            @foreach($timeSlots as $time)
-                                <label class="cursor-pointer">
-                                    <input wire:model="walkInTime" value="{{ $time }}" class="peer sr-only" type="radio">
-                                    <div class="py-2 rounded-lg border border-outline-variant/30 bg-surface-container text-on-surface text-center hover:bg-surface-container-high transition-colors text-xs font-mono peer-checked:border-primary peer-checked:bg-primary/15 peer-checked:text-primary font-bold">
-                                        {{ $time }}
+                                @if($walkInEstimasiSelesai)
+                                    <div class="text-[11px] font-mono text-on-surface-variant bg-surface-container-highest px-2.5 py-2 rounded-xl whitespace-nowrap">
+                                        s/d <strong class="text-on-surface">{{ $walkInEstimasiSelesai }}</strong>
                                     </div>
-                                </label>
+                                @endif
+                            </div>
+                        </div>
+
+                        <!-- Quick Helper Buttons -->
+                        <div class="flex flex-wrap items-center gap-1.5 pt-2 border-t border-outline-variant/20">
+                            <span class="text-[11px] text-on-surface-variant font-medium mr-1">Cepat:</span>
+                            <button type="button" wire:click="setWalkInTimeNow" class="px-2.5 py-1 rounded-lg bg-primary/15 hover:bg-primary/25 border border-primary/30 text-primary text-xs font-semibold flex items-center gap-1 transition-all">
+                                <span class="material-symbols-outlined text-[13px]">bolt</span> Sekarang ({{ now()->format('H:i') }})
+                            </button>
+                            @foreach(['10:00', '12:00', '13:30', '15:00', '16:30', '18:00', '19:30'] as $preset)
+                                <button type="button" wire:click="setWalkInTime('{{ $preset }}')" class="px-2.5 py-1 rounded-lg {{ $walkInTime === $preset ? 'bg-primary text-on-primary font-bold' : 'bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-mono' }} text-xs transition-all">
+                                    {{ $preset }}
+                                </button>
                             @endforeach
                         </div>
-                        @error('walkInTime') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
                     </div>
+
+                    <!-- Status Alert -->
+                    @if($walkInConflict)
+                        <div class="p-3 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-200 text-xs flex items-start gap-2.5 animate-[fadeIn_0.2s_ease-out]">
+                            <span class="material-symbols-outlined text-rose-400 text-[18px] shrink-0 mt-0.5">event_busy</span>
+                            <div class="space-y-0.5">
+                                <strong class="text-rose-300 font-bold block">Jadwal Bertabrakan!</strong>
+                                <p class="text-rose-200/90 leading-tight">{{ $walkInConflict['message'] }}</p>
+                            </div>
+                        </div>
+                    @elseif(!empty($walkInTime) && $walkInEstimasiSelesai)
+                        <div class="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center justify-between">
+                            <span class="flex items-center gap-1.5">
+                                <span class="material-symbols-outlined text-emerald-400 text-[16px]">check_circle</span>
+                                <span>Pukul <strong>{{ substr($walkInTime, 0, 5) }} - {{ $walkInEstimasiSelesai }} WIB</strong> tersedia</span>
+                            </span>
+                            <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono font-bold">Tersedia</span>
+                        </div>
+                    @endif
+                    @error('walkInTime') <span class="text-rose-400 text-xs block font-semibold">{{ $message }}</span> @enderror
+
+                    <!-- Penanda Jadwal yang Sudah Ter-booking -->
+                    <div class="space-y-1.5 pt-1">
+                        <div class="flex items-center justify-between text-xs text-on-surface-variant font-bold uppercase tracking-wider">
+                            <span class="flex items-center gap-1 text-[11px]">
+                                <span class="material-symbols-outlined text-rose-400 text-[15px]">lock_clock</span>
+                                <span>Jadwal Ter-booking ({{ count($walkInBookedSlots) }})</span>
+                            </span>
+                        </div>
+                        @if(count($walkInBookedSlots) > 0)
+                            <div class="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-36 overflow-y-auto pr-1">
+                                @foreach($walkInBookedSlots as $slot)
+                                    @php
+                                        $isCurrent = $walkInConflict && isset($walkInConflict['slot']) && $walkInConflict['slot']['id'] === $slot['id'];
+                                    @endphp
+                                    <div class="p-2 rounded-lg {{ $isCurrent ? 'bg-rose-500/25 border border-rose-500 text-rose-200' : 'bg-surface-container border border-rose-500/20 text-on-surface' }} text-xs font-mono">
+                                        <div class="font-bold text-rose-300">{{ $slot['start'] }} - {{ $slot['end'] }}</div>
+                                        <div class="text-[10px] text-on-surface-variant truncate">{{ $slot['layanan'] }}</div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @else
+                            <div class="p-2.5 rounded-lg bg-surface-container/60 text-xs text-on-surface-variant text-center">
+                                Belum ada antrean lain di jam ini. Waktu bebas dipilih.
+                            </div>
+                        @endif
+                    </div>
+                </div>
                 </div>
                 <!-- Footer -->
                 <div class="p-5 bg-surface-container-highest border-t border-outline-variant/30 flex items-center justify-end gap-3">
@@ -1151,21 +1290,83 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
                         @error('rescheduleKapsterId') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
                     </div>
 
-                    <!-- Time Slot Grid -->
-                    <div class="space-y-2 pt-1">
-                        <label class="block text-xs uppercase font-bold text-on-surface-variant tracking-wider">Pilih Jam / Slot Waktu Baru</label>
-                        <div class="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-40 overflow-y-auto pr-1">
-                            @foreach($timeSlots as $time)
-                                <label class="cursor-pointer">
-                                    <input wire:model="rescheduleTime" value="{{ $time }}" class="peer sr-only" type="radio">
-                                    <div class="py-2 rounded-lg border border-outline-variant/30 bg-surface-container text-on-surface text-center hover:bg-surface-container-high transition-colors text-xs font-mono peer-checked:border-primary peer-checked:bg-primary/15 peer-checked:text-primary font-bold">
-                                        {{ $time }}
+                    <!-- Manual Reschedule Time Selection -->
+                    <div class="p-4 rounded-xl bg-surface-container border border-outline-variant/30 space-y-3">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div>
+                                <label class="block text-xs uppercase font-bold text-on-surface-variant tracking-wider">Jam Baru (Manual)</label>
+                                <p class="text-[11px] text-on-surface-variant">Atur jadwal baru secara manual.</p>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <div class="relative">
+                                    <input type="time" wire:model.live.debounce.300ms="rescheduleTime" class="bg-surface-container-high border {{ $rescheduleConflict ? 'border-rose-500 text-rose-400' : 'border-outline-variant/50 text-primary' }} focus:border-primary rounded-xl px-3 py-2 text-center text-base font-mono font-bold outline-none transition-all">
+                                </div>
+                                @if($rescheduleEstimasiSelesai)
+                                    <div class="text-[11px] font-mono text-on-surface-variant bg-surface-container-highest px-2.5 py-2 rounded-xl whitespace-nowrap">
+                                        s/d <strong class="text-on-surface">{{ $rescheduleEstimasiSelesai }}</strong>
                                     </div>
-                                </label>
+                                @endif
+                            </div>
+                        </div>
+
+                        <!-- Quick Helper Buttons -->
+                        <div class="flex flex-wrap items-center gap-1.5 pt-2 border-t border-outline-variant/20">
+                            <span class="text-[11px] text-on-surface-variant font-medium mr-1">Cepat:</span>
+                            @foreach(['09:30', '11:00', '13:00', '14:30', '16:00', '17:30', '19:00'] as $preset)
+                                <button type="button" wire:click="setRescheduleTime('{{ $preset }}')" class="px-2.5 py-1 rounded-lg {{ $rescheduleTime === $preset ? 'bg-primary text-on-primary font-bold' : 'bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-mono' }} text-xs transition-all">
+                                    {{ $preset }}
+                                </button>
                             @endforeach
                         </div>
-                        @error('rescheduleTime') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
                     </div>
+
+                    <!-- Status Alert -->
+                    @if($rescheduleConflict)
+                        <div class="p-3 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-200 text-xs flex items-start gap-2.5 animate-[fadeIn_0.2s_ease-out]">
+                            <span class="material-symbols-outlined text-rose-400 text-[18px] shrink-0 mt-0.5">event_busy</span>
+                            <div class="space-y-0.5">
+                                <strong class="text-rose-300 font-bold block">Jadwal Bertabrakan!</strong>
+                                <p class="text-rose-200/90 leading-tight">{{ $rescheduleConflict['message'] }}</p>
+                            </div>
+                        </div>
+                    @elseif(!empty($rescheduleTime) && $rescheduleEstimasiSelesai)
+                        <div class="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center justify-between">
+                            <span class="flex items-center gap-1.5">
+                                <span class="material-symbols-outlined text-emerald-400 text-[16px]">check_circle</span>
+                                <span>Pukul <strong>{{ substr($rescheduleTime, 0, 5) }} - {{ $rescheduleEstimasiSelesai }} WIB</strong> tersedia</span>
+                            </span>
+                            <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono font-bold">Tersedia</span>
+                        </div>
+                    @endif
+                    @error('rescheduleTime') <span class="text-rose-400 text-xs block font-semibold">{{ $message }}</span> @enderror
+
+                    <!-- Penanda Jadwal yang Sudah Ter-booking -->
+                    <div class="space-y-1.5 pt-1">
+                        <div class="flex items-center justify-between text-xs text-on-surface-variant font-bold uppercase tracking-wider">
+                            <span class="flex items-center gap-1 text-[11px]">
+                                <span class="material-symbols-outlined text-rose-400 text-[15px]">lock_clock</span>
+                                <span>Jadwal Ter-booking Kapster Ini ({{ count($rescheduleBookedSlots) }})</span>
+                            </span>
+                        </div>
+                        @if(count($rescheduleBookedSlots) > 0)
+                            <div class="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-36 overflow-y-auto pr-1">
+                                @foreach($rescheduleBookedSlots as $slot)
+                                    @php
+                                        $isCurrent = $rescheduleConflict && isset($rescheduleConflict['slot']) && $rescheduleConflict['slot']['id'] === $slot['id'];
+                                    @endphp
+                                    <div class="p-2 rounded-lg {{ $isCurrent ? 'bg-rose-500/25 border border-rose-500 text-rose-200' : 'bg-surface-container border border-rose-500/20 text-on-surface' }} text-xs font-mono">
+                                        <div class="font-bold text-rose-300">{{ $slot['start'] }} - {{ $slot['end'] }}</div>
+                                        <div class="text-[10px] text-on-surface-variant truncate">{{ $slot['layanan'] }}</div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @else
+                            <div class="p-2.5 rounded-lg bg-surface-container/60 text-xs text-on-surface-variant text-center">
+                                Kapster ini belum memiliki antrean lain di tanggal ini.
+                            </div>
+                        @endif
+                    </div>
+                </div>
                 </div>
 
                 <!-- Footer -->

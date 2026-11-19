@@ -88,9 +88,16 @@ new #[Layout('components.layouts.admin')]
         $this->showWalkInModal = true;
     }
 
+        public function setWalkInTime($time)
+    {
+        $this->walkInTime = $time;
+        $this->resetErrorBag('walkInTime');
+    }
+
     public function setWalkInTimeNow()
     {
-        $this->walkInTime = now()->format('H:i:s');
+        $this->walkInTime = now()->format('H:i');
+        $this->resetErrorBag('walkInTime');
     }
 
     public function saveWalkIn()
@@ -709,32 +716,86 @@ new #[Layout('components.layouts.admin')]
                             </div>
                         </div>
                     </div>
-                    <!-- Time Slot Grid -->
-                    <div class="space-y-2 pt-2">
-                        <label class="block text-xs uppercase font-bold text-on-surface-variant tracking-wider">Pilih
-                            Jam</label>
-                        <div class="grid grid-cols-4 gap-2">
-                            <label class="cursor-pointer col-span-2" wire:click="setWalkInTimeNow">
-                                <input wire:model="walkInTime" value="{{ now()->format('H:i:s') }}" class="peer sr-only"
-                                    type="radio">
-                                <div
-                                    class="py-2 rounded-lg border border-outline-variant/30 bg-surface-container text-on-surface text-center hover:bg-surface-container-high transition-colors text-xs font-mono peer-checked:border-primary peer-checked:bg-primary/15 peer-checked:text-primary font-bold flex items-center justify-center gap-1">
-                                    <span class="material-symbols-outlined text-sm">schedule</span>
-                                    <span>Sekarang ({{ now()->format('H:i') }})</span>
+                    <!-- Manual Time Selection -->
+                    <div class="p-4 rounded-xl bg-surface-container border border-outline-variant/30 space-y-3">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div>
+                                <label class="block text-xs uppercase font-bold text-on-surface-variant tracking-wider">Jam Mulai (Manual)</label>
+                                <p class="text-[11px] text-on-surface-variant">Atur jam mulai pengerjaan job Anda.</p>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <div class="relative">
+                                    <input type="time" wire:model.live.debounce.300ms="walkInTime" class="bg-surface-container-high border {{ $walkInConflict ? 'border-rose-500 text-rose-400' : 'border-outline-variant/50 text-primary' }} focus:border-primary rounded-xl px-3 py-2 text-center text-base font-mono font-bold outline-none transition-all">
                                 </div>
-                            </label>
-                            @foreach($timeSlots as $time)
-                                <label class="cursor-pointer">
-                                    <input wire:model="walkInTime" value="{{ $time }}" class="peer sr-only" type="radio">
-                                    <div
-                                        class="py-2 rounded-lg border border-outline-variant/30 bg-surface-container text-on-surface text-center hover:bg-surface-container-high transition-colors text-xs font-mono peer-checked:border-primary peer-checked:bg-primary/15 peer-checked:text-primary font-bold">
-                                        {{ $time }}
+                                @if($walkInEstimasiSelesai)
+                                    <div class="text-[11px] font-mono text-on-surface-variant bg-surface-container-highest px-2.5 py-2 rounded-xl whitespace-nowrap">
+                                        s/d <strong class="text-on-surface">{{ $walkInEstimasiSelesai }}</strong>
                                     </div>
-                                </label>
+                                @endif
+                            </div>
+                        </div>
+
+                        <!-- Quick Helper Buttons -->
+                        <div class="flex flex-wrap items-center gap-1.5 pt-2 border-t border-outline-variant/20">
+                            <span class="text-[11px] text-on-surface-variant font-medium mr-1">Cepat:</span>
+                            <button type="button" wire:click="setWalkInTimeNow" class="px-2.5 py-1 rounded-lg bg-primary/15 hover:bg-primary/25 border border-primary/30 text-primary text-xs font-semibold flex items-center gap-1 transition-all">
+                                <span class="material-symbols-outlined text-[13px]">bolt</span> Sekarang ({{ now()->format('H:i') }})
+                            </button>
+                            @foreach(['10:00', '12:00', '13:30', '15:00', '16:30', '18:00', '19:30'] as $preset)
+                                <button type="button" wire:click="setWalkInTime('{{ $preset }}')" class="px-2.5 py-1 rounded-lg {{ $walkInTime === $preset ? 'bg-primary text-on-primary font-bold' : 'bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-mono' }} text-xs transition-all">
+                                    {{ $preset }}
+                                </button>
                             @endforeach
                         </div>
-                        @error('walkInTime') <span class="text-rose-400 text-xs">{{ $message }}</span> @enderror
                     </div>
+
+                    <!-- Status Alert -->
+                    @if($walkInConflict)
+                        <div class="p-3 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-200 text-xs flex items-start gap-2.5 animate-[fadeIn_0.2s_ease-out]">
+                            <span class="material-symbols-outlined text-rose-400 text-[18px] shrink-0 mt-0.5">event_busy</span>
+                            <div class="space-y-0.5">
+                                <strong class="text-rose-300 font-bold block">Jadwal Bertabrakan!</strong>
+                                <p class="text-rose-200/90 leading-tight">{{ $walkInConflict['message'] }}</p>
+                            </div>
+                        </div>
+                    @elseif(!empty($walkInTime) && $walkInEstimasiSelesai)
+                        <div class="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center justify-between">
+                            <span class="flex items-center gap-1.5">
+                                <span class="material-symbols-outlined text-emerald-400 text-[16px]">check_circle</span>
+                                <span>Pukul <strong>{{ substr($walkInTime, 0, 5) }} - {{ $walkInEstimasiSelesai }} WIB</strong> tersedia</span>
+                            </span>
+                            <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono font-bold">Tersedia</span>
+                        </div>
+                    @endif
+                    @error('walkInTime') <span class="text-rose-400 text-xs block font-semibold">{{ $message }}</span> @enderror
+
+                    <!-- Penanda Jadwal yang Sudah Ter-booking -->
+                    <div class="space-y-1.5 pt-1">
+                        <div class="flex items-center justify-between text-xs text-on-surface-variant font-bold uppercase tracking-wider">
+                            <span class="flex items-center gap-1 text-[11px]">
+                                <span class="material-symbols-outlined text-rose-400 text-[15px]">lock_clock</span>
+                                <span>Jadwal Job Anda Hari Ini ({{ count($walkInBookedSlots) }})</span>
+                            </span>
+                        </div>
+                        @if(count($walkInBookedSlots) > 0)
+                            <div class="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-36 overflow-y-auto pr-1">
+                                @foreach($walkInBookedSlots as $slot)
+                                    @php
+                                        $isCurrent = $walkInConflict && isset($walkInConflict['slot']) && $walkInConflict['slot']['id'] === $slot['id'];
+                                    @endphp
+                                    <div class="p-2 rounded-lg {{ $isCurrent ? 'bg-rose-500/25 border border-rose-500 text-rose-200' : 'bg-surface-container border border-rose-500/20 text-on-surface' }} text-xs font-mono">
+                                        <div class="font-bold text-rose-300">{{ $slot['start'] }} - {{ $slot['end'] }}</div>
+                                        <div class="text-[10px] text-on-surface-variant truncate">{{ $slot['layanan'] }}</div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @else
+                            <div class="p-2.5 rounded-lg bg-surface-container/60 text-xs text-on-surface-variant text-center">
+                                Anda belum memiliki antrean lain di jam ini.
+                            </div>
+                        @endif
+                    </div>
+                </div>
                 </div>
                 <!-- Footer -->
                 <div

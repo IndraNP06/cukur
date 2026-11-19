@@ -19,7 +19,7 @@ new #[Layout('components.layouts.customer')] #[Title('Booking Reservasi - Ran Cu
  public $selectedDate = null;
  
  // Step 3: Waktu
- public $selectedTime = null;
+ public $selectedTime = '10:00';
 
  // Step 4: Konfirmasi & Voucher
  public $promoCode = '';
@@ -41,7 +41,17 @@ new #[Layout('components.layouts.customer')] #[Title('Booking Reservasi - Ran Cu
  }
  }
 
- public function nextStep() {
+     public function setTime($time) {
+        $this->selectedTime = $time;
+        $this->resetErrorBag('selectedTime');
+    }
+
+    public function setTimeNow() {
+        $this->selectedTime = now()->format('H:i');
+        $this->resetErrorBag('selectedTime');
+    }
+
+public function nextStep() {
  if ($this->step === 1) {
  $this->validate([
  'selectedLayanan' => 'required',
@@ -109,15 +119,23 @@ new #[Layout('components.layouts.customer')] #[Title('Booking Reservasi - Ran Cu
 
  // We will create the Antrean (Booking) here
  // Using kapster_id logic: if 'any', we assign an available one (for now random)
- $kapsterId = $this->selectedKapster;
- if ($kapsterId === 'any') {
- $kapster = User::whereHas('roles', function($q){$q->where('name', 'Kapster');})->inRandomOrder()->first();
- if (!$kapster) {
- $this->addError('selectedKapster', 'Mohon maaf, saat ini tidak ada kapster yang tersedia.');
- return;
- }
- $kapsterId = $kapster->id;
- }
+  $layananModel = Layanan::find($this->selectedLayanan);
+        $durasi = $layananModel ? $layananModel->estimasi_durasi_menit : 30;
+        $conflict = \App\Models\AntreanPemesanan::checkConflict($this->selectedDate, $this->selectedTime, $durasi, $this->selectedKapster);
+        if ($conflict) {
+            $this->step = 3;
+            $this->addError('selectedTime', $conflict['message']);
+            return;
+        }
+
+        $kapsterId = $this->selectedKapster;
+        if ($kapsterId === 'any' || empty($kapsterId)) {
+            $kapsterId = \App\Models\AntreanPemesanan::findAvailableKapster($this->selectedDate, $this->selectedTime, $durasi);
+            if (!$kapsterId) {
+                $kapster = User::where('role', 'Kapster')->orWhereHas('roles', fn($q) => $q->where('name', 'Kapster'))->inRandomOrder()->first();
+                $kapsterId = $kapster ? $kapster->id : 1;
+            }
+        }
 
         $booking = \App\Models\AntreanPemesanan::create([
             'pelanggan_id' => auth()->id(),
@@ -193,21 +211,32 @@ new #[Layout('components.layouts.customer')] #[Title('Booking Reservasi - Ran Cu
  $selectedKapsterModel = User::find($this->selectedKapster);
  }
 
- return [
- 'layanans' => $layanans,
- 'kapsters' => $kapsters,
- 'subtotal' => $subtotal,
- 'diskon' => $diskon,
- 'total' => $total,
- 'selectedLayananModel' => $selectedLayananModel,
- 'selectedKapsterModel' => $selectedKapsterModel,
- 'timeSlots' => [
- '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', 
- '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
- '15:00', '15:30', '16:00', '16:30', '17:00', '17:30',
- '18:00', '18:30', '19:00', '19:30', '20:00'
- ]
- ];
+  $durasiMenit = $selectedLayananModel ? $selectedLayananModel->estimasi_durasi_menit : 30;
+        $conflict = null;
+        $estimasiSelesai = null;
+        if ($this->selectedTime) {
+            $conflict = \App\Models\AntreanPemesanan::checkConflict($this->selectedDate, $this->selectedTime, $durasiMenit, $this->selectedKapster);
+            try {
+                $rawParts = explode(':', trim($this->selectedTime));
+                $pStart = \Carbon\Carbon::createFromFormat('H:i', sprintf('%02d:%02d', (int)$rawParts[0], (int)$rawParts[1]));
+                $estimasiSelesai = $pStart->copy()->addMinutes($durasiMenit)->format('H:i');
+            } catch (\Throwable $e) {}
+        }
+        $bookedSlots = \App\Models\AntreanPemesanan::getBookedSlots($this->selectedDate, $this->selectedKapster);
+
+        return [
+            'layanans' => $layanans,
+            'kapsters' => $kapsters,
+            'subtotal' => $subtotal,
+            'diskon' => $diskon,
+            'total' => $total,
+            'selectedLayananModel' => $selectedLayananModel,
+            'selectedKapsterModel' => $selectedKapsterModel,
+            'durasiMenit' => $durasiMenit,
+            'conflict' => $conflict,
+            'estimasiSelesai' => $estimasiSelesai,
+            'bookedSlots' => $bookedSlots,
+        ];
  }
 };
 ?>
@@ -379,40 +408,155 @@ new #[Layout('components.layouts.customer')] #[Title('Booking Reservasi - Ran Cu
  @endif
 
  <!-- STEP 3: WAKTU -->
- @if($step === 3)
- <div class="flex flex-col gap-5 lg:gap-5 py-4 animate-[fadeIn_0.3s_ease-out]">
- <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-4 gap-4">
- <div>
- <h2 class="font-headline-xl text-on-surface tracking-tight text-headline-xl">Pilih Jam Reservasi</h2>
- <p class="font-body-lg text-body-lg text-on-surface-variant mt-2 flex items-center gap-2">
- <span class="material-symbols-outlined text-primary">calendar_today</span>
- Jadwal untuk: <span class="text-primary font-semibold">{{ \Carbon\Carbon::parse($selectedDate)->translatedFormat('l, d F Y') }}</span>
- </p>
- @error('selectedTime') <span class="text-error text-sm block mt-2">{{ $message }}</span> @enderror
- </div>
- <div class="flex items-center gap-2 bg-surface-container-lowest px-4 py-2 rounded-lg">
- <span class="material-symbols-outlined text-on-surface-variant text-[20px]">schedule</span>
- <span class="font-label-md text-label-md text-on-surface-variant">Durasi: ~{{ $selectedLayananModel ? $selectedLayananModel->estimasi_durasi_menit : 0 }} Min</span>
- </div>
- </div>
+    @if($step === 3)
+    <div class="flex flex-col gap-6 py-4 animate-[fadeIn_0.3s_ease-out]">
+        <!-- Header Info -->
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-white/5 pb-5">
+            <div>
+                <h2 class="font-headline-xl text-on-surface tracking-tight text-headline-xl">Atur Waktu Reservasi</h2>
+                <p class="font-body-lg text-body-lg text-on-surface-variant mt-2 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary">calendar_today</span>
+                    Tanggal: <span class="text-primary font-semibold">{{ \Carbon\Carbon::parse($selectedDate)->translatedFormat('l, d F Y') }}</span>
+                    <span class="text-on-surface-variant/40">•</span>
+                    <span class="text-on-surface-variant">Kapster: <strong class="text-on-surface">{{ $selectedKapsterModel ? $selectedKapsterModel->nama : 'Bebas (Siapa Saja)' }}</strong></span>
+                </p>
+                @error('selectedTime') <span class="text-error text-sm block mt-2 font-medium">{{ $message }}</span> @enderror
+            </div>
+            <div class="flex items-center gap-2 bg-surface-container-high px-4 py-2.5 rounded-xl border border-white/5">
+                <span class="material-symbols-outlined text-primary text-[20px]">timer</span>
+                <span class="font-label-md text-sm text-on-surface font-medium">Estimasi Durasi: <strong class="text-primary font-mono">{{ $durasiMenit }} Menit</strong></span>
+            </div>
+        </div>
 
- <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
- @foreach($timeSlots as $time)
- <label class="cursor-pointer">
- <input wire:model="selectedTime" value="{{ $time }}" class="peer sr-only" type="radio" name="timeSlot">
- <div class="bg-surface-container-high hover:bg-surface-variant text-on-surface font-headline-md py-4 rounded-xl transition-all duration-200 flex flex-col items-center justify-center gap-1 group peer-checked:bg-primary peer-checked:text-on-primary peer-checked:scale-105 peer-checked:shadow-lg peer-checked:shadow-primary/30 relative text-headline-md">
- {{ $time }}
- <span class="font-label-sm text-label-sm opacity-0 group-hover:opacity-100 peer-checked:opacity-100 peer-checked:font-bold transition-opacity">
- Pilih
- </span>
- </div>
- </label>
- @endforeach
- </div>
- </div>
- @endif
+        <!-- Manual Time Input Card -->
+        <div class="bg-surface-container rounded-2xl p-5 lg:p-6 border border-white/10 shadow-xl space-y-5">
+            <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
+                <div>
+                    <label class="block font-headline-sm text-base font-bold text-on-surface">Pilih Jam Mulai (Manual)</label>
+                    <p class="text-xs text-on-surface-variant mt-1 max-w-md leading-relaxed">
+                        Atur jam kehadiran Anda sendiri secara manual. Waktu yang sudah ter-booking tidak dapat dipilih untuk mencegah jadwal bentrok.
+                    </p>
+                </div>
+                
+                <div class="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+                    <div class="relative w-full sm:w-auto">
+                        <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-primary text-[20px]">schedule</span>
+                        <input type="time" wire:model.live.debounce.300ms="selectedTime" class="w-full sm:w-48 bg-background border-2 {{ $conflict ? 'border-rose-500 text-rose-400' : 'border-primary/50 text-primary' }} focus:border-primary rounded-xl pl-10 pr-4 py-3 text-center text-xl font-mono font-bold outline-none transition-all shadow-inner">
+                    </div>
+                    @if($estimasiSelesai)
+                        <div class="text-xs text-on-surface-variant font-mono bg-surface-container-highest px-3.5 py-3 rounded-xl border border-white/5 whitespace-nowrap">
+                            Selesai: <strong class="text-on-surface">{{ $estimasiSelesai }} WIB</strong>
+                        </div>
+                    @endif
+                </div>
+            </div>
 
- <!-- STEP 4: KONFIRMASI -->
+            <!-- Quick Choice Buttons -->
+            <div class="flex flex-wrap items-center gap-2 pt-3 border-t border-white/5">
+                <span class="text-xs text-on-surface-variant font-medium mr-1 flex items-center gap-1">
+                    <span class="material-symbols-outlined text-[15px]">touch_app</span> Pilihan Cepat:
+                </span>
+                @if($selectedDate === now()->toDateString())
+                    <button type="button" wire:click="setTimeNow" class="px-3 py-1.5 rounded-lg bg-primary/15 hover:bg-primary/25 border border-primary/30 text-primary text-xs font-semibold flex items-center gap-1 transition-all">
+                        <span class="material-symbols-outlined text-[14px]">bolt</span> Sekarang ({{ now()->format('H:i') }})
+                    </button>
+                @endif
+                @foreach(['10:00', '11:00', '13:00', '14:00', '15:30', '17:00', '18:30', '19:30'] as $preset)
+                    <button type="button" wire:click="setTime('{{ $preset }}')" class="px-3 py-1.5 rounded-lg {{ $selectedTime === $preset ? 'bg-primary text-on-primary font-bold shadow-md shadow-primary/20' : 'bg-surface-container-highest hover:bg-white/10 text-on-surface font-mono' }} text-xs transition-all">
+                        {{ $preset }}
+                    </button>
+                @endforeach
+            </div>
+        </div>
+
+        <!-- Real-time Status Alert -->
+        @if($conflict)
+            <div class="p-4 rounded-2xl bg-rose-500/15 border-2 border-rose-500/40 text-rose-200 animate-[fadeIn_0.2s_ease-out]">
+                <div class="flex items-start gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0">
+                        <span class="material-symbols-outlined text-[22px]">event_busy</span>
+                    </div>
+                    <div class="space-y-1">
+                        <h4 class="font-bold text-sm text-rose-300 flex items-center gap-2">
+                            <span>Jadwal Tersebut Tidak Dapat Dipilih</span>
+                            <span class="px-2 py-0.5 rounded text-[10px] bg-rose-500/30 text-rose-200 font-mono font-bold uppercase tracking-wider">Bentrok</span>
+                        </h4>
+                        <p class="text-xs text-rose-200/90 leading-relaxed">
+                            {{ $conflict['message'] }}
+                        </p>
+                        <p class="text-[11px] text-rose-300 font-medium pt-1">
+                            💡 Silakan ganti jam mulai ke waktu yang berada di luar rentang jadwal yang sudah ter-booking di bawah ini.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        @elseif(!empty($selectedTime) && $estimasiSelesai)
+            <div class="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-[fadeIn_0.2s_ease-out]">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                        <span class="material-symbols-outlined text-[22px]">check_circle</span>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-sm text-emerald-200">Waktu Tersedia!</h4>
+                        <p class="text-xs text-emerald-300/90">
+                            Pukul <strong class="font-mono text-emerald-200">{{ substr($selectedTime, 0, 5) }} - {{ $estimasiSelesai }} WIB</strong> dapat dibooking untuk layanan ini.
+                        </p>
+                    </div>
+                </div>
+                <span class="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-xs uppercase tracking-wider font-mono">
+                    Siap Dipesan
+                </span>
+            </div>
+        @endif
+
+        <!-- Penanda Jadwal yang Sudah Di-booking Hari Ini -->
+        <div class="space-y-3 pt-2">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-rose-400 text-[18px]">lock_clock</span>
+                    <h3 class="font-bold text-xs uppercase text-on-surface-variant tracking-wider">
+                        Jadwal yang Sudah Di-booking (Terkunci)
+                    </h3>
+                </div>
+                <span class="text-[11px] text-on-surface-variant">
+                    {{ count($bookedSlots) }} Jadwal Terisi
+                </span>
+            </div>
+
+            @if(count($bookedSlots) > 0)
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
+                    @foreach($bookedSlots as $slot)
+                        @php
+                            $isCurrentConflict = $conflict && isset($conflict['slot']) && $conflict['slot']['id'] === $slot['id'];
+                        @endphp
+                        <div class="p-3 rounded-xl {{ $isCurrentConflict ? 'bg-rose-500/20 border-2 border-rose-500 shadow-lg shadow-rose-500/20' : 'bg-surface-container-high border border-rose-500/20' }} flex items-center justify-between gap-2 transition-all">
+                            <div class="flex items-center gap-2.5 min-w-0">
+                                <span class="w-2 h-2 rounded-full {{ $isCurrentConflict ? 'bg-rose-400 animate-ping' : 'bg-rose-500' }} shrink-0"></span>
+                                <div class="min-w-0">
+                                    <p class="text-xs font-mono font-bold text-rose-300">{{ $slot['start'] }} - {{ $slot['end'] }} WIB</p>
+                                    <p class="text-[11px] text-on-surface-variant truncate">{{ $slot['layanan'] }}</p>
+                                    @if(empty($selectedKapster) || $selectedKapster === 'any')
+                                        <p class="text-[10px] text-primary/80 truncate">Kapster: {{ $slot['kapster_nama'] }}</p>
+                                    @endif
+                                </div>
+                            </div>
+                            <span class="text-[10px] px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 font-semibold font-mono shrink-0">
+                                Ter-booking
+                            </span>
+                        </div>
+                    @endforeach
+                </div>
+            @else
+                <div class="p-4 rounded-xl bg-surface-container-high/50 border border-white/5 text-xs text-on-surface-variant text-center flex items-center justify-center gap-2">
+                    <span class="material-symbols-outlined text-emerald-400 text-[18px]">event_available</span>
+                    <span>Belum ada jadwal yang ter-booking pada tanggal ini. Seluruh jam buka toko (09:00 - 21:00) bebas dipilih.</span>
+                </div>
+            @endif
+        </div>
+    </div>
+    @endif
+
+    <!-- STEP 4: KONFIRMASI -->
  @if($step === 4)
  <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-5 lg:gap-12 items-start animate-[fadeIn_0.3s_ease-out]">
  <!-- Left Column: Details -->

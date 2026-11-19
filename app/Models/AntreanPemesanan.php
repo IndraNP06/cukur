@@ -197,4 +197,207 @@ class AntreanPemesanan extends Model
 
         return (int) ($menungguCount * 30 + ($isProcessing ? 15 : 0));
     }
+
+    /**
+     * Dapatkan daftar rentang jadwal yang sudah terisi (booked) pada tanggal & kapster tertentu.
+     * Mengembalikan list array ['id', 'nomor_antrean', 'start', 'end', 'durasi', 'layanan', 'kapster_id', 'kapster_nama']
+     */
+    public static function getBookedSlots(?string $tanggal, $kapsterId = null, $excludeId = null): array
+    {
+        if (empty($tanggal)) {
+            return [];
+        }
+
+        $query = self::with(['layanan', 'kapster'])
+            ->whereDate('tanggal', $tanggal)
+            ->where('status', '!=', 'Batal')
+            ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId));
+
+        if (!empty($kapsterId) && $kapsterId !== 'any') {
+            $query->where('kapster_id', $kapsterId);
+        }
+
+        $bookings = $query->orderBy('waktu_estimasi_mulai')->get();
+
+        $slots = [];
+        foreach ($bookings as $b) {
+            if (empty($b->waktu_estimasi_mulai)) {
+                continue;
+            }
+
+            $rawTime = trim($b->waktu_estimasi_mulai);
+            $parts = explode(':', $rawTime);
+            if (count($parts) < 2) {
+                continue;
+            }
+            $startTime = sprintf('%02d:%02d', (int)$parts[0], (int)$parts[1]);
+
+            $durasi = $b->layanan ? (int)$b->layanan->estimasi_durasi_menit : 30;
+            if ($durasi < 1) {
+                $durasi = 30;
+            }
+
+            try {
+                $startCarbon = \Carbon\Carbon::createFromFormat('H:i', $startTime);
+                $endTime = $startCarbon->copy()->addMinutes($durasi)->format('H:i');
+            } catch (\Throwable $e) {
+                continue;
+            }
+
+            $slots[] = [
+                'id' => $b->id,
+                'nomor_antrean' => $b->nomor_antrean,
+                'start' => $startTime,
+                'end' => $endTime,
+                'durasi' => $durasi,
+                'layanan' => $b->layanan ? $b->layanan->nama_layanan : 'Layanan Cukur',
+                'kapster_id' => $b->kapster_id,
+                'kapster_nama' => $b->kapster ? $b->kapster->nama : 'Kapster',
+            ];
+        }
+
+        return $slots;
+    }
+
+    /**
+     * Periksa apakah waktu mulai dan durasi yang dipilih bertabrakan (overlap) dengan jadwal lain.
+     * Mengembalikan null jika waktu TERSEDIA, atau array detail bentrok jika TIDAK TERSEDIA.
+     */
+    public static function checkConflict(?string $tanggal, ?string $startTime, int $durasiMenit = 30, $kapsterId = null, $excludeId = null): ?array
+    {
+        if (empty($tanggal) || empty($startTime)) {
+            return null;
+        }
+
+        $rawTime = trim($startTime);
+        $parts = explode(':', $rawTime);
+        if (count($parts) < 2) {
+            return [
+                'conflict' => true,
+                'slot' => null,
+                'message' => 'Format jam tidak valid (contoh: 13:00).'
+            ];
+        }
+        $formattedStart = sprintf('%02d:%02d', (int)$parts[0], (int)$parts[1]);
+        $durasiMenit = max(1, (int)$durasiMenit);
+
+        try {
+            $pStart = \Carbon\Carbon::createFromFormat('H:i', $formattedStart);
+            $pEnd = $pStart->copy()->addMinutes($durasiMenit);
+        } catch (\Throwable $e) {
+            return [
+                'conflict' => true,
+                'slot' => null,
+                'message' => 'Format jam tidak valid.'
+            ];
+        }
+
+        $allKapsters = User::where('role', 'Kapster')
+            ->orWhereHas('roles', fn($q) => $q->where('name', 'Kapster'))
+            ->get();
+
+        // 1. Jika kapster tertentu dipilih
+        if (!empty($kapsterId) && $kapsterId !== 'any') {
+            $slots = self::getBookedSlots($tanggal, $kapsterId, $excludeId);
+            foreach ($slots as $slot) {
+                try {
+                    $eStart = \Carbon\Carbon::createFromFormat('H:i', $slot['start']);
+                    $eEnd = \Carbon\Carbon::createFromFormat('H:i', $slot['end']);
+
+                    // Overlap: proposed start < existing end AND proposed end > existing start
+                    if ($pStart->lt($eEnd) && $pEnd->gt($eStart)) {
+                        return [
+                            'conflict' => true,
+                            'slot' => $slot,
+                            'message' => "Jadwal {$formattedStart} - {$pEnd->format('H:i')} bertabrakan dengan antrean {$slot['kapster_nama']} pada pukul {$slot['start']} - {$slot['end']} ({$slot['layanan']})."
+                        ];
+                    }
+                } catch (\Throwable $e) {}
+            }
+            return null;
+        }
+
+        // 2. Jika 'any' / Bebas Kapster: cek apakah SEMUA kapster sibuk pada rentang waktu ini
+        $availableKapsterFound = false;
+        foreach ($allKapsters as $k) {
+            $kSlots = self::getBookedSlots($tanggal, $k->id, $excludeId);
+            $kBusy = false;
+            foreach ($kSlots as $slot) {
+                try {
+                    $eStart = \Carbon\Carbon::createFromFormat('H:i', $slot['start']);
+                    $eEnd = \Carbon\Carbon::createFromFormat('H:i', $slot['end']);
+                    if ($pStart->lt($eEnd) && $pEnd->gt($eStart)) {
+                        $kBusy = true;
+                        break;
+                    }
+                } catch (\Throwable $e) {}
+            }
+            if (!$kBusy) {
+                $availableKapsterFound = true;
+                break;
+            }
+        }
+
+        if (!$availableKapsterFound && $allKapsters->count() > 0) {
+            return [
+                'conflict' => true,
+                'slot' => null,
+                'message' => "Seluruh kapster sedang penuh pada rentang waktu {$formattedStart} - {$pEnd->format('H:i')}. Silakan pilih jam lain."
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * Cari kapster yang jadwalnya kosong pada tanggal & rentang waktu yang dipilih.
+     */
+    public static function findAvailableKapster(?string $tanggal, ?string $startTime, int $durasiMenit = 30, $excludeId = null): ?int
+    {
+        $allKapsters = User::where('role', 'Kapster')
+            ->orWhereHas('roles', fn($q) => $q->where('name', 'Kapster'))
+            ->get();
+
+        if ($allKapsters->isEmpty()) {
+            return 1;
+        }
+
+        if (empty($tanggal) || empty($startTime)) {
+            return $allKapsters->first()->id;
+        }
+
+        $rawTime = trim($startTime);
+        $parts = explode(':', $rawTime);
+        if (count($parts) < 2) {
+            return $allKapsters->first()->id;
+        }
+        $formattedStart = sprintf('%02d:%02d', (int)$parts[0], (int)$parts[1]);
+
+        try {
+            $pStart = \Carbon\Carbon::createFromFormat('H:i', $formattedStart);
+            $pEnd = $pStart->copy()->addMinutes(max(1, $durasiMenit));
+        } catch (\Throwable $e) {
+            return $allKapsters->first()->id;
+        }
+
+        foreach ($allKapsters as $k) {
+            $kSlots = self::getBookedSlots($tanggal, $k->id, $excludeId);
+            $isBusy = false;
+            foreach ($kSlots as $slot) {
+                try {
+                    $eStart = \Carbon\Carbon::createFromFormat('H:i', $slot['start']);
+                    $eEnd = \Carbon\Carbon::createFromFormat('H:i', $slot['end']);
+                    if ($pStart->lt($eEnd) && $pEnd->gt($eStart)) {
+                        $isBusy = true;
+                        break;
+                    }
+                } catch (\Throwable $e) {}
+            }
+            if (!$isBusy) {
+                return $k->id;
+            }
+        }
+
+        return $allKapsters->first()->id;
+    }
 }
