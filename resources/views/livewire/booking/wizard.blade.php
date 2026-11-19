@@ -130,6 +130,11 @@ new #[Layout('components.layouts.customer')] #[Title('Booking Reservasi - Ran Cu
             'status' => 'Menunggu'
         ]);
 
+        // Potong stok barang yang digunakan layanan ini secara otomatis
+        try {
+            $booking->potongStokBahan();
+        } catch (\Throwable $e) {}
+
         try {
             app(\App\Services\GoogleSheetsService::class)->appendRow('antrean_pemesanan', [
                 'id' => $booking->id,

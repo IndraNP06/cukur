@@ -310,6 +310,10 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
             $antrean->save();
         }, 5);
 
+        try {
+            $antrean->kembalikanStokBahan();
+        } catch (\Throwable $e) {}
+
         $this->showCancelModal = false;
         $nomor = $antrean->nomor_antrean;
         $this->reset(['cancelAntreanId', 'activeSelectedAntrean']);
@@ -381,6 +385,10 @@ new #[Layout('components.layouts.admin')] #[Title('Antrean Terpadu - Ran Cukurin
                 'waktu_estimasi_mulai' => $this->walkInTime,
                 'status' => 'Menunggu'
             ]);
+
+            try {
+                $antrean->potongStokBahan();
+            } catch (\Throwable $e) {}
 
             try {
                 app(\App\Services\GoogleSheetsService::class)->appendRow('antrean_pemesanan', [

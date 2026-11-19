@@ -148,6 +148,10 @@ new #[Layout('components.layouts.admin')]
             ]);
 
             try {
+                $antrean->potongStokBahan();
+            } catch (\Throwable $e) {}
+
+            try {
                 app(\App\Services\GoogleSheetsService::class)->appendRow('antrean_pemesanan', [
                     'id' => $antrean->id,
                     'nomor_antrean' => $antrean->nomor_antrean,

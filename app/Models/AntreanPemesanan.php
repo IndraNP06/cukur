@@ -27,6 +27,90 @@ class AntreanPemesanan extends Model
     }
 
     /**
+     * Potong stok bahan / barang yang terhubung ke layanan ini secara otomatis saat pesanan dibuat.
+     */
+    public function potongStokBahan(): bool
+    {
+        $layanan = $this->layanan ?? Layanan::find($this->layanan_id);
+        if (!$layanan || empty($layanan->barang_id)) {
+            return false;
+        }
+
+        $barang = Barang::find($layanan->barang_id);
+        if (!$barang) {
+            return false;
+        }
+
+        $qtyDibutuhkan = max(1, (int)($layanan->jumlah_pemakaian_barang ?? 1));
+        $stokAkhir = max(0, (int)$barang->stok_sekarang - $qtyDibutuhkan);
+        $barang->update(['stok_sekarang' => $stokAkhir]);
+
+        try {
+            LogStok::create([
+                'barang_id' => $barang->id,
+                'pencatat_id' => auth()->id() ?? ($this->pelanggan_id ?? 1),
+                'referensi_transaksi_id' => null,
+                'tipe_log' => 'KeluarManual',
+                'qty_perubahan' => -$qtyDibutuhkan,
+                'stok_akhir' => $stokAkhir,
+                'keterangan' => 'Pemakaian bahan otomatis layanan ' . $layanan->nama_layanan . ' (Antrean #' . $this->nomor_antrean . ')'
+            ]);
+        } catch (\Throwable $e) {}
+
+        // Sinkronisasi pembaruan stok ke Google Spreadsheet
+        try {
+            app(\App\Services\GoogleSheetsService::class)->updateRow('barang', $barang->id, [
+                'stok_sekarang' => $stokAkhir,
+                'updated_at' => now()->toDateTimeString(),
+            ]);
+        } catch (\Throwable $e) {}
+
+        return true;
+    }
+
+    /**
+     * Kembalikan stok bahan / barang jika antrean dibatalkan.
+     */
+    public function kembalikanStokBahan(): bool
+    {
+        $layanan = $this->layanan ?? Layanan::find($this->layanan_id);
+        if (!$layanan || empty($layanan->barang_id)) {
+            return false;
+        }
+
+        $barang = Barang::find($layanan->barang_id);
+        if (!$barang) {
+            return false;
+        }
+
+        $qtyDibutuhkan = max(1, (int)($layanan->jumlah_pemakaian_barang ?? 1));
+        $stokAkhir = (int)$barang->stok_sekarang + $qtyDibutuhkan;
+        $barang->update(['stok_sekarang' => $stokAkhir]);
+
+        try {
+            LogStok::create([
+                'barang_id' => $barang->id,
+                'pencatat_id' => auth()->id() ?? 1,
+                'referensi_transaksi_id' => null,
+                'tipe_log' => 'Masuk',
+                'qty_perubahan' => $qtyDibutuhkan,
+                'stok_akhir' => $stokAkhir,
+                'keterangan' => 'Pengembalian bahan pembatalan antrean #' . $this->nomor_antrean . ' (' . $layanan->nama_layanan . ')'
+            ]);
+        } catch (\Throwable $e) {}
+
+        // Sinkronisasi pembaruan stok ke Google Spreadsheet
+        try {
+            app(\App\Services\GoogleSheetsService::class)->updateRow('barang', $barang->id, [
+                'stok_sekarang' => $stokAkhir,
+                'updated_at' => now()->toDateTimeString(),
+            ]);
+        } catch (\Throwable $e) {}
+
+        return true;
+    }
+
+    /**
      * Hitung sisa antrean yang berada di depan antrean ini pada hari yang sama.
      */
     public function getSisaAntreanDiDepanAttribute(): int

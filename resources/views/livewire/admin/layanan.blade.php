@@ -22,6 +22,8 @@ new #[Layout('components.layouts.admin')] #[Title('Kelola Layanan - Ran Cukurin'
  public $estimasi_durasi_menit;
  public $gambar;
  public $is_active = true;
+    public $barang_id = null;
+    public $jumlah_pemakaian_barang = 1;
 
     public function mount() {
     }
@@ -45,6 +47,8 @@ new #[Layout('components.layouts.admin')] #[Title('Kelola Layanan - Ran Cukurin'
  'estimasi_durasi_menit' => 'required|integer|min:1',
  'gambar' => 'nullable|string|max:255',
  'is_active' => 'boolean',
+        'barang_id' => 'nullable|exists:barang,id',
+        'jumlah_pemakaian_barang' => 'required|integer|min:1',
  ];
     }
 
@@ -58,7 +62,8 @@ new #[Layout('components.layouts.admin')] #[Title('Kelola Layanan - Ran Cukurin'
 
  public function create() {
  $this->resetValidation();
- $this->reset(['nama_layanan', 'deskripsi', 'harga', 'estimasi_durasi_menit', 'gambar', 'is_active', 'layananId']);
+ $this->reset(['nama_layanan', 'deskripsi', 'harga', 'estimasi_durasi_menit', 'gambar', 'is_active', 'layananId', 'barang_id']);
+        $this->jumlah_pemakaian_barang = 1;
  $this->isEdit = false;
  $this->showModal = true;
  }
@@ -73,6 +78,8 @@ new #[Layout('components.layouts.admin')] #[Title('Kelola Layanan - Ran Cukurin'
  $this->estimasi_durasi_menit = $layanan->estimasi_durasi_menit;
  $this->gambar = $layanan->gambar;
  $this->is_active = $layanan->is_active;
+        $this->barang_id = $layanan->barang_id;
+        $this->jumlah_pemakaian_barang = $layanan->jumlah_pemakaian_barang ?? 1;
  $this->isEdit = true;
  $this->showModal = true;
  }
@@ -80,25 +87,22 @@ new #[Layout('components.layouts.admin')] #[Title('Kelola Layanan - Ran Cukurin'
  public function save() {
  $this->validate();
 
- if ($this->isEdit) {
- Layanan::where('id', $this->layananId)->update([
- 'nama_layanan' => $this->nama_layanan,
- 'deskripsi' => $this->deskripsi,
- 'harga' => $this->harga,
- 'estimasi_durasi_menit' => $this->estimasi_durasi_menit,
- 'gambar' => $this->gambar,
- 'is_active' => $this->is_active,
- ]);
- } else {
- Layanan::create([
- 'nama_layanan' => $this->nama_layanan,
- 'deskripsi' => $this->deskripsi,
- 'harga' => $this->harga,
- 'estimasi_durasi_menit' => $this->estimasi_durasi_menit,
- 'gambar' => $this->gambar,
- 'is_active' => $this->is_active,
- ]);
- }
+ $data = [
+            'nama_layanan' => $this->nama_layanan,
+            'deskripsi' => $this->deskripsi,
+            'harga' => $this->harga,
+            'estimasi_durasi_menit' => $this->estimasi_durasi_menit,
+            'gambar' => $this->gambar,
+            'is_active' => $this->is_active,
+            'barang_id' => $this->barang_id ?: null,
+            'jumlah_pemakaian_barang' => $this->barang_id ? ($this->jumlah_pemakaian_barang ?? 1) : 1,
+        ];
+
+        if ($this->isEdit) {
+            Layanan::where('id', $this->layananId)->update($data);
+        } else {
+            Layanan::create($data);
+        }
 
  $this->showModal = false;
  session()->flash('message', 'Layanan berhasil disimpan.');
@@ -116,7 +120,7 @@ new #[Layout('components.layouts.admin')] #[Title('Kelola Layanan - Ran Cukurin'
  }
 
  public function with() {
- $query = Layanan::query()
+ $query = Layanan::with('barang')
  ->when($this->search, function($q) {
  $q->where('nama_layanan', 'like', '%'.$this->search.'%');
  })
@@ -125,7 +129,8 @@ new #[Layout('components.layouts.admin')] #[Title('Kelola Layanan - Ran Cukurin'
  });
  
  return [
- 'layanans' => $query->latest()->paginate(10)
+ 'layanans' => $query->latest()->paginate(10),
+            'barangs' => \App\Models\Barang::orderBy('nama_barang')->get()
  ];
  }
 };
@@ -187,6 +192,7 @@ new #[Layout('components.layouts.admin')] #[Title('Kelola Layanan - Ran Cukurin'
  <thead class="bg-surface-container-high text-on-surface-variant font-label-md text-label-md uppercase tracking-wider">
  <tr>
  <th class="px-4 lg:px-5 py-4 font-medium">Nama Layanan</th>
+                    <th class="px-4 lg:px-5 py-4 font-medium">Bahan Terpakai</th>
  <th class="px-4 lg:px-5 py-4 font-medium">Durasi</th>
  <th class="px-4 lg:px-5 py-4 font-medium">Harga</th>
  <th class="px-4 lg:px-5 py-4 font-medium">Status</th>
@@ -211,6 +217,19 @@ new #[Layout('components.layouts.admin')] #[Title('Kelola Layanan - Ran Cukurin'
  </div>
  </div>
  </td>
+ <td class="px-4 lg:px-5 py-4">
+ @if($layanan->barang)
+ <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 border border-primary/20 text-primary text-xs">
+ <span class="material-symbols-outlined text-[15px]">inventory_2</span>
+ <span>{{ $layanan->jumlah_pemakaian_barang }}x {{ $layanan->barang->nama_barang }}</span>
+ </div>
+ <div class="text-[11px] text-on-surface-variant mt-0.5">
+ Sisa: <span class="font-mono font-medium {{ $layanan->barang->stok_sekarang <= 5 ? 'text-amber-400' : 'text-on-surface' }}">{{ $layanan->barang->stok_sekarang }} {{ $layanan->barang->satuan }}</span>
+ </div>
+ @else
+ <span class="text-on-surface-variant text-xs italic">-</span>
+ @endif
+ </td>
  <td class="px-4 lg:px-5 py-4 text-on-surface-variant font-mono">{{ $layanan->estimasi_durasi_menit }} Menit</td>
  <td class="px-4 lg:px-5 py-4 font-label-md text-label-md text-primary">Rp {{ number_format($layanan->harga, 0, ',', '.') }}</td>
  <td class="px-4 lg:px-5 py-4">
@@ -233,7 +252,7 @@ new #[Layout('components.layouts.admin')] #[Title('Kelola Layanan - Ran Cukurin'
  </tr>
  @empty
  <tr>
- <td colspan="5" class="px-4 lg:px-5 py-5 lg:py-5 text-center text-on-surface-variant">Belum ada data layanan.</td>
+ <td colspan="6" class="px-4 lg:px-5 py-5 lg:py-5 text-center text-on-surface-variant">Belum ada data layanan.</td>
  </tr>
  @endforelse
  </tbody>
@@ -284,6 +303,48 @@ new #[Layout('components.layouts.admin')] #[Title('Kelola Layanan - Ran Cukurin'
  <input wire:model="harga" type="number" min="0" class="w-full bg-background rounded-xl py-3 px-4 font-body-md text-body-md text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
  @error('harga') <span class="text-error text-sm">{{ $message }}</span> @enderror
  </div>
+ </div>
+
+  <!-- Pemakaian Bahan / Barang -->
+ <div class="p-4 bg-surface-container-highest/40 rounded-xl border border-white/5 space-y-3">
+ <div class="flex items-center gap-2 text-primary font-medium text-sm">
+ <span class="material-symbols-outlined text-[18px]">inventory_2</span>
+ <span>Pemakaian Bahan Baku / Produk (Otomatis Terpotong)</span>
+ </div>
+ <p class="text-xs text-on-surface-variant leading-relaxed">
+ Pilih bahan baku/produk yang otomatis berkurang stoknya saat layanan ini dipesan (misal: obat keriting/perming, cat semir, bleaching, shampoo khusus).
+ </p>
+ 
+ <div class="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+ <div class="md:col-span-2 space-y-1">
+ <label class="block text-xs font-label-md text-on-surface">Pilih Bahan / Barang</label>
+ <select wire:model.live="barang_id" class="w-full bg-background rounded-xl py-2.5 px-3 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none">
+ <option value="">-- Tanpa Pemotongan Stok --</option>
+ @foreach($barangs as $b)
+ <option value="{{ $b->id }}">
+ {{ $b->nama_barang }} (Stok: {{ $b->stok_sekarang }} {{ $b->satuan }}) - [{{ $b->tipe }}]
+ </option>
+ @endforeach
+ </select>
+ @error('barang_id') <span class="text-error text-xs">{{ $message }}</span> @enderror
+ </div>
+ <div class="space-y-1">
+ <label class="block text-xs font-label-md text-on-surface">Qty Terpotong</label>
+ <input wire:model="jumlah_pemakaian_barang" type="number" min="1" {{ !$barang_id ? 'disabled' : '' }} class="w-full bg-background rounded-xl py-2.5 px-3 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none {{ !$barang_id ? 'opacity-40 cursor-not-allowed' : '' }}" required>
+ @error('jumlah_pemakaian_barang') <span class="text-error text-xs">{{ $message }}</span> @enderror
+ </div>
+ </div>
+ @if($barang_id)
+ @php
+ $selectedBarang = $barangs->firstWhere('id', $barang_id);
+ @endphp
+ @if($selectedBarang)
+ <div class="text-xs flex items-center gap-1.5 text-emerald-400 bg-emerald-500/10 px-3 py-2 rounded-lg border border-emerald-500/20">
+ <span class="material-symbols-outlined text-[16px]">check_circle</span>
+ <span>Saat dipesan, stok <strong>{{ $selectedBarang->nama_barang }}</strong> otomatis dipotong <strong>{{ $jumlah_pemakaian_barang }} {{ $selectedBarang->satuan }}</strong> (Sisa saat ini: {{ $selectedBarang->stok_sekarang }} {{ $selectedBarang->satuan }}).</span>
+ </div>
+ @endif
+ @endif
  </div>
 
  <div class="flex items-center gap-3 pt-2">

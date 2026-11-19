@@ -8,7 +8,12 @@ class Layanan extends Model
 {
     use HasFactory;
     protected $table = 'layanan';
-    protected $fillable = ['nama_layanan', 'deskripsi', 'harga', 'estimasi_durasi_menit', 'is_active', 'gambar'];
+    protected $fillable = ['nama_layanan', 'deskripsi', 'harga', 'estimasi_durasi_menit', 'is_active', 'gambar', 'barang_id', 'jumlah_pemakaian_barang'];
+
+    public function barang()
+    {
+        return $this->belongsTo(Barang::class, 'barang_id');
+    }
 
     public function getGambarUrlAttribute(): string
     {
