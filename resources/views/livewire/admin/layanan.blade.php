@@ -264,104 +264,133 @@ new #[Layout('components.layouts.admin')] #[Title('Kelola Layanan - Ran Cukurin'
  </div>
 
  <!-- Modal Form -->
- @if($showModal)
- <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
- <div class="bg-surface-container rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-white/10">
- <div class="px-4 lg:px-5 py-4 border-b border-white/10 flex justify-between items-center bg-surface-container-lowest">
- <h3 class="font-headline-md text-on-surface text-headline-md">{{ $isEdit ? 'Edit Layanan' : 'Tambah Layanan Baru' }}</h3>
- <button wire:click="$set('showModal', false)" class="text-on-surface-variant hover:text-error transition-colors">
- <span class="material-symbols-outlined">close</span>
- </button>
- </div>
- <form wire:submit="save" class="p-4 lg:p-5 space-y-4">
- <div class="space-y-2">
- <label class="block font-label-md text-label-md text-on-surface">Nama Layanan</label>
- <input wire:model="nama_layanan" type="text" class="w-full bg-background rounded-xl py-3 px-4 font-body-md text-body-md text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
- @error('nama_layanan') <span class="text-error text-sm">{{ $message }}</span> @enderror
- </div>
- 
- <div class="space-y-2">
- <label class="block font-label-md text-label-md text-on-surface">Path / URL Gambar (Opsional)</label>
- <input wire:model="gambar" type="text" class="w-full bg-background rounded-xl py-3 px-4 font-body-md text-body-md text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" placeholder="e.g. images/layanan/basic-haircut.jpg">
- @error('gambar') <span class="text-error text-sm">{{ $message }}</span> @enderror
- </div>
+    @if($showModal)
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 sm:p-6 overflow-y-auto">
+        <div class="bg-surface-container rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden border border-white/10 animate-[scale-up_0.2s_ease-out]">
+            <!-- Modal Header (Always Visible / Sticky) -->
+            <div class="px-5 py-4 border-b border-white/10 flex justify-between items-center bg-surface-container-lowest shrink-0">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                        <span class="material-symbols-outlined text-[20px]">{{ $isEdit ? 'edit_note' : 'add_circle' }}</span>
+                    </div>
+                    <h3 class="font-headline-md text-on-surface text-lg font-bold">{{ $isEdit ? 'Edit Layanan' : 'Tambah Layanan Baru' }}</h3>
+                </div>
+                <button type="button" wire:click="$set('showModal', false)" class="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:text-error hover:bg-white/5 transition-colors focus:outline-none">
+                    <span class="material-symbols-outlined text-[20px]">close</span>
+                </button>
+            </div>
 
- <div class="space-y-2">
- <label class="block font-label-md text-label-md text-on-surface">Deskripsi / Rincian</label>
- <textarea wire:model="deskripsi" class="w-full bg-background rounded-xl py-3 px-4 font-body-md text-body-md text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" rows="3"></textarea>
- @error('deskripsi') <span class="text-error text-sm">{{ $message }}</span> @enderror
- </div>
+            <!-- Form Container with scrollable content & pinned footer -->
+            <form wire:submit="save" class="flex flex-col flex-1 overflow-hidden min-h-0">
+                <!-- Scrollable Form Body -->
+                <div class="p-5 overflow-y-auto space-y-4 flex-1">
+                    <!-- Row 1: Nama Layanan & Gambar URL -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="space-y-1.5">
+                            <label class="block font-label-md text-xs font-semibold text-on-surface">Nama Layanan <span class="text-error">*</span></label>
+                            <input wire:model="nama_layanan" type="text" class="w-full bg-background rounded-xl py-2.5 px-3.5 font-body-md text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" placeholder="e.g. Basic Haircut" required>
+                            @error('nama_layanan') <span class="text-error text-xs">{{ $message }}</span> @enderror
+                        </div>
+                        
+                        <div class="space-y-1.5">
+                            <label class="block font-label-md text-xs font-semibold text-on-surface">Path / URL Gambar (Opsional)</label>
+                            <input wire:model="gambar" type="text" class="w-full bg-background rounded-xl py-2.5 px-3.5 font-body-md text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" placeholder="e.g. images/layanan/basic-haircut.jpg">
+                            @error('gambar') <span class="text-error text-xs">{{ $message }}</span> @enderror
+                        </div>
+                    </div>
 
- <div class="flex gap-4">
- <div class="space-y-2 flex-1">
- <label class="block font-label-md text-label-md text-on-surface">Durasi (Menit)</label>
- <input wire:model="estimasi_durasi_menit" type="number" min="1" class="w-full bg-background rounded-xl py-3 px-4 font-body-md text-body-md text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
- @error('estimasi_durasi_menit') <span class="text-error text-sm">{{ $message }}</span> @enderror
- </div>
- <div class="space-y-2 flex-1">
- <label class="block font-label-md text-label-md text-on-surface">Harga (Rp)</label>
- <input wire:model="harga" type="number" min="0" class="w-full bg-background rounded-xl py-3 px-4 font-body-md text-body-md text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" required>
- @error('harga') <span class="text-error text-sm">{{ $message }}</span> @enderror
- </div>
- </div>
+                    <!-- Row 2: Deskripsi -->
+                    <div class="space-y-1.5">
+                        <label class="block font-label-md text-xs font-semibold text-on-surface">Deskripsi / Rincian Layanan</label>
+                        <textarea wire:model="deskripsi" class="w-full bg-background rounded-xl py-2.5 px-3.5 font-body-md text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" rows="2" placeholder="Jelaskan detail perawatan / pengerjaan..."></textarea>
+                        @error('deskripsi') <span class="text-error text-xs">{{ $message }}</span> @enderror
+                    </div>
 
-  <!-- Pemakaian Bahan / Barang -->
- <div class="p-4 bg-surface-container-highest/40 rounded-xl border border-white/5 space-y-3">
- <div class="flex items-center gap-2 text-primary font-medium text-sm">
- <span class="material-symbols-outlined text-[18px]">inventory_2</span>
- <span>Pemakaian Bahan Baku / Produk (Otomatis Terpotong)</span>
- </div>
- <p class="text-xs text-on-surface-variant leading-relaxed">
- Pilih bahan baku/produk yang otomatis berkurang stoknya saat layanan ini dipesan (misal: obat keriting/perming, cat semir, bleaching, shampoo khusus).
- </p>
- 
- <div class="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
- <div class="md:col-span-2 space-y-1">
- <label class="block text-xs font-label-md text-on-surface">Pilih Bahan / Barang</label>
- <select wire:model.live="barang_id" class="w-full bg-background rounded-xl py-2.5 px-3 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none">
- <option value="">-- Tanpa Pemotongan Stok --</option>
- @foreach($barangs as $b)
- <option value="{{ $b->id }}">
- {{ $b->nama_barang }} (Stok: {{ $b->stok_sekarang }} {{ $b->satuan }}) - [{{ $b->tipe }}]
- </option>
- @endforeach
- </select>
- @error('barang_id') <span class="text-error text-xs">{{ $message }}</span> @enderror
- </div>
- <div class="space-y-1">
- <label class="block text-xs font-label-md text-on-surface">Qty Terpotong</label>
- <input wire:model="jumlah_pemakaian_barang" type="number" min="1" {{ !$barang_id ? 'disabled' : '' }} class="w-full bg-background rounded-xl py-2.5 px-3 text-sm text-on-surface border border-outline-variant focus:border-primary outline-none {{ !$barang_id ? 'opacity-40 cursor-not-allowed' : '' }}" required>
- @error('jumlah_pemakaian_barang') <span class="text-error text-xs">{{ $message }}</span> @enderror
- </div>
- </div>
- @if($barang_id)
- @php
- $selectedBarang = $barangs->firstWhere('id', $barang_id);
- @endphp
- @if($selectedBarang)
- <div class="text-xs flex items-center gap-1.5 text-emerald-400 bg-emerald-500/10 px-3 py-2 rounded-lg border border-emerald-500/20">
- <span class="material-symbols-outlined text-[16px]">check_circle</span>
- <span>Saat dipesan, stok <strong>{{ $selectedBarang->nama_barang }}</strong> otomatis dipotong <strong>{{ $jumlah_pemakaian_barang }} {{ $selectedBarang->satuan }}</strong> (Sisa saat ini: {{ $selectedBarang->stok_sekarang }} {{ $selectedBarang->satuan }}).</span>
- </div>
- @endif
- @endif
- </div>
+                    <!-- Row 3: Durasi & Harga -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="space-y-1.5">
+                            <label class="block font-label-md text-xs font-semibold text-on-surface">Durasi (Menit) <span class="text-error">*</span></label>
+                            <div class="relative">
+                                <input wire:model="estimasi_durasi_menit" type="number" min="1" class="w-full bg-background rounded-xl py-2.5 pl-3.5 pr-14 font-body-md text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" placeholder="30" required>
+                                <span class="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs text-on-surface-variant font-mono">Menit</span>
+                            </div>
+                            @error('estimasi_durasi_menit') <span class="text-error text-xs">{{ $message }}</span> @enderror
+                        </div>
+                        <div class="space-y-1.5">
+                            <label class="block font-label-md text-xs font-semibold text-on-surface">Harga Standar (Rp) <span class="text-error">*</span></label>
+                            <div class="relative">
+                                <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-primary font-mono font-bold">Rp</span>
+                                <input wire:model="harga" type="number" min="0" class="w-full bg-background rounded-xl py-2.5 pl-10 pr-3.5 font-body-md text-sm text-on-surface border border-outline-variant focus:border-primary outline-none transition-colors" placeholder="50000" required>
+                            </div>
+                            @error('harga') <span class="text-error text-xs">{{ $message }}</span> @enderror
+                        </div>
+                    </div>
 
- <div class="flex items-center gap-3 pt-2">
- <input wire:model="is_active" id="is_active" type="checkbox" class="w-5 h-5 rounded border-outline-variant bg-background text-primary focus:ring-primary accent-primary">
- <label for="is_active" class="font-label-md text-label-md text-on-surface cursor-pointer">Status Aktif</label>
- </div>
- 
- <div class="pt-6 flex justify-end gap-3 border-t border-white/10 mt-6">
- <button type="button" wire:click="$set('showModal', false)" class="px-4 lg:px-5 py-2.5 rounded-full font-label-md text-label-md text-on-surface-variant hover:bg-surface-container-highest transition-colors">Batal</button>
- <button type="submit" class="px-4 lg:px-5 py-2.5 rounded-full font-label-md text-label-md bg-primary text-on-primary hover:bg-primary-container hover:text-on-primary-container transition-colors shadow-lg shadow-primary/20">
- <span wire:loading.remove wire:target="save">Simpan Layanan</span>
- <span wire:loading wire:target="save">Menyimpan...</span>
- </button>
- </div>
- </form>
- </div>
- </div>
- @endif
+                    <!-- Row 4: Pemakaian Bahan / Barang (Otomatis Terpotong) -->
+                    <div class="p-3.5 bg-surface-container-highest/40 rounded-xl border border-white/5 space-y-2.5">
+                        <div class="flex items-center gap-2 text-primary font-medium text-xs">
+                            <span class="material-symbols-outlined text-[16px]">inventory_2</span>
+                            <span class="font-bold">Pemakaian Bahan Baku / Produk (Otomatis Terpotong)</span>
+                        </div>
+                        <p class="text-[11px] text-on-surface-variant leading-relaxed">
+                            Pilih bahan baku/produk yang otomatis berkurang stoknya saat layanan ini dipesan (misal: obat keriting/perming, cat semir, bleaching, shampoo khusus).
+                        </p>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 pt-0.5">
+                            <div class="md:col-span-2 space-y-1">
+                                <label class="block text-[11px] font-label-md text-on-surface-variant font-medium">Pilih Bahan / Barang</label>
+                                <select wire:model.live="barang_id" class="w-full bg-background rounded-xl py-2 px-3 text-xs text-on-surface border border-outline-variant focus:border-primary outline-none">
+                                    <option value="">-- Tanpa Pemotongan Stok --</option>
+                                    @foreach($barangs as $b)
+                                        <option value="{{ $b->id }}">
+                                            {{ $b->nama_barang }} (Stok: {{ $b->stok_sekarang }} {{ $b->satuan }}) - [{{ $b->tipe }}]
+                                        </option>
+                                    @endforeach
+                                </select>
+                                @error('barang_id') <span class="text-error text-xs">{{ $message }}</span> @enderror
+                            </div>
+                            <div class="space-y-1">
+                                <label class="block text-[11px] font-label-md text-on-surface-variant font-medium">Qty Terpotong</label>
+                                <input wire:model="jumlah_pemakaian_barang" type="number" min="1" {{ !$barang_id ? 'disabled' : '' }} class="w-full bg-background rounded-xl py-2 px-3 text-xs text-on-surface border border-outline-variant focus:border-primary outline-none {{ !$barang_id ? 'opacity-40 cursor-not-allowed' : '' }}" required>
+                                @error('jumlah_pemakaian_barang') <span class="text-error text-xs">{{ $message }}</span> @enderror
+                            </div>
+                        </div>
+                        @if($barang_id)
+                            @php
+                                $selectedBarang = $barangs->firstWhere('id', $barang_id);
+                            @endphp
+                            @if($selectedBarang)
+                                <div class="text-[11px] flex items-center gap-1.5 text-emerald-400 bg-emerald-500/10 px-2.5 py-1.5 rounded-lg border border-emerald-500/20">
+                                    <span class="material-symbols-outlined text-[15px]">check_circle</span>
+                                    <span>Saat dipesan, stok <strong>{{ $selectedBarang->nama_barang }}</strong> otomatis dipotong <strong>{{ $jumlah_pemakaian_barang }} {{ $selectedBarang->satuan }}</strong> (Sisa saat ini: {{ $selectedBarang->stok_sekarang }} {{ $selectedBarang->satuan }}).</span>
+                                </div>
+                            @endif
+                        @endif
+                    </div>
+
+                    <!-- Row 5: Status Aktif -->
+                    <div class="flex items-center gap-2.5 pt-1">
+                        <input wire:model="is_active" id="is_active" type="checkbox" class="w-4 h-4 rounded border-outline-variant bg-background text-primary focus:ring-primary accent-primary cursor-pointer">
+                        <label for="is_active" class="font-label-md text-xs font-medium text-on-surface cursor-pointer select-none">Status Layanan Aktif (Ditampilkan ke pelanggan untuk booking)</label>
+                    </div>
+                </div>
+                
+                <!-- Modal Footer (Always Visible / Sticky at Bottom) -->
+                <div class="px-5 py-3.5 border-t border-white/10 bg-surface-container-lowest shrink-0 flex justify-end items-center gap-3">
+                    <button type="button" wire:click="$set('showModal', false)" class="px-5 py-2.5 rounded-xl font-label-md text-xs font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors">Batal</button>
+                    <button type="submit" class="px-5 py-2.5 rounded-xl font-label-md text-xs font-semibold bg-primary text-on-primary hover:bg-primary-container hover:text-on-primary-container transition-all shadow-md shadow-primary/20 flex items-center gap-2">
+                        <span wire:loading.remove wire:target="save" class="flex items-center gap-1.5">
+                            <span class="material-symbols-outlined text-[18px]">save</span>
+                            <span>Simpan Layanan</span>
+                        </span>
+                        <span wire:loading wire:target="save" class="flex items-center gap-1.5">
+                            <span class="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>
+                            <span>Menyimpan...</span>
+                        </span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    @endif
 </div>
-
