@@ -28,6 +28,12 @@ class RanCukurinVerifyEmail extends Notification
         $nama = $notifiable->nama ?? $notifiable->name ?? 'Pelanggan Ran CukurIn';
         $html = EmailNotificationService::buildVerificationHtml($nama, $verificationUrl);
 
+        // Simpan ke session dan cache agar bisa diakses langsung di layar (Mode Cepat)
+        session()->put('direct_verification_url', $verificationUrl);
+        try {
+            cache()->put('direct_verification_url_' . $notifiable->getEmailForVerification(), $verificationUrl, now()->addMinutes(60));
+        } catch (\Throwable $e) {}
+
         return EmailNotificationService::send(
             $notifiable->getEmailForVerification(),
             'Verifikasi Alamat Email Anda - Ran CukurIn',

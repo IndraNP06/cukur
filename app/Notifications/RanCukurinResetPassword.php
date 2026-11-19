@@ -32,6 +32,12 @@ class RanCukurinResetPassword extends Notification
         $nama = $notifiable->nama ?? $notifiable->name ?? 'Pelanggan Ran CukurIn';
         $html = EmailNotificationService::buildResetPasswordHtml($nama, $url);
 
+        // Simpan ke session dan cache agar bisa diakses langsung di layar (Mode Cepat / Skripsi tanpa wajib buka inbox)
+        session()->put('direct_reset_url', $url);
+        try {
+            cache()->put('direct_reset_url_' . $notifiable->getEmailForPasswordReset(), $url, now()->addMinutes(60));
+        } catch (\Throwable $e) {}
+
         return EmailNotificationService::send(
             $notifiable->getEmailForPasswordReset(),
             'Atur Ulang Kata Sandi Akun - Ran CukurIn',

@@ -29,6 +29,23 @@ new #[Layout('components.layouts.app')] #[Title('Verifikasi Email - Ran CukurIn'
         $this->status = 'verification-link-sent';
     }
 
+    public function verifyNowDirectly(): void
+    {
+        $user = Auth::user();
+        if ($user && !$user->hasVerifiedEmail()) {
+            $user->markEmailAsVerified();
+            event(new \Illuminate\Auth\Events\Verified($user));
+
+            try {
+                app(\App\Services\GoogleSheetsService::class)->updateRow('pengguna', $user->id, [
+                    'email_verified_at' => now()->toDateTimeString(),
+                ]);
+            } catch (\Throwable $e) {}
+        }
+
+        $this->redirectIntended(route('customer.dashboard', absolute: false));
+    }
+
     public function logout(): void
     {
         Auth::logout();
@@ -93,13 +110,20 @@ new #[Layout('components.layouts.app')] #[Title('Verifikasi Email - Ran CukurIn'
                     @endif
 
                     <div class="space-y-3 pt-2">
-                        <button wire:click="sendVerification" wire:loading.attr="disabled" type="button" class="w-full py-3.5 transition-all shadow-xl rounded-xl bg-primary text-on-primary font-label-md text-xs font-bold uppercase tracking-wider hover:bg-primary-fixed-dim hover:shadow-primary/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
-                            <span wire:loading.remove wire:target="sendVerification" class="material-symbols-outlined text-[18px]">send</span>
-                            <span wire:loading wire:target="sendVerification" class="material-symbols-outlined text-[18px] animate-spin">refresh</span>
-                            <span>Kirim Ulang Email Verifikasi</span>
+                        <!-- Direct Instant Verification (Aktivasi Cepat untuk Pengujian / Demo) -->
+                        <button wire:click="verifyNowDirectly" wire:loading.attr="disabled" type="button" class="w-full py-3.5 transition-all shadow-xl rounded-xl bg-primary text-on-primary font-label-md text-xs font-bold uppercase tracking-wider hover:bg-primary-fixed-dim hover:shadow-primary/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
+                            <span wire:loading.remove wire:target="verifyNowDirectly" class="material-symbols-outlined text-[18px]">verified</span>
+                            <span wire:loading wire:target="verifyNowDirectly" class="material-symbols-outlined text-[18px] animate-spin">refresh</span>
+                            <span>Aktivasi Akun Sekarang (Mode Cepat)</span>
                         </button>
 
-                        <button wire:click="logout" type="button" class="w-full py-3 transition-all rounded-xl border border-outline-variant/30 text-on-surface-variant hover:text-rose-400 hover:border-rose-400/30 font-label-md text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer">
+                        <button wire:click="sendVerification" wire:loading.attr="disabled" type="button" class="w-full py-3 transition-all rounded-xl border border-outline-variant/40 bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-label-md text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
+                            <span wire:loading.remove wire:target="sendVerification" class="material-symbols-outlined text-[18px]">send</span>
+                            <span wire:loading wire:target="sendVerification" class="material-symbols-outlined text-[18px] animate-spin">refresh</span>
+                            <span>Kirim Ulang ke Email</span>
+                        </button>
+
+                        <button wire:click="logout" type="button" class="w-full py-2.5 transition-all rounded-xl border border-transparent text-on-surface-variant hover:text-rose-400 font-label-md text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer">
                             <span class="material-symbols-outlined text-[16px]">logout</span>
                             <span>Keluar &amp; Gunakan Akun Lain</span>
                         </button>

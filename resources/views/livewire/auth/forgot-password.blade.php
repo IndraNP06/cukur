@@ -6,23 +6,25 @@ use Livewire\Attributes\Title;
 use Livewire\Volt\Component;
 
 new #[Layout('components.layouts.app')] #[Title('Lupa Kata Sandi - Ran CukurIn')] class extends Component {
- public string $email = '';
- public string $status = '';
+    public string $email = '';
+    public string $status = '';
+    public ?string $directResetUrl = null;
 
- public function sendPasswordResetLink()
- {
- $this->validate(['email' => ['required', 'email']]);
+    public function sendPasswordResetLink()
+    {
+        $this->validate(['email' => ['required', 'email']]);
 
- $status = Password::broker()->sendResetLink(
- ['email' => $this->email]
- );
+        $status = Password::broker()->sendResetLink(
+            ['email' => $this->email]
+        );
 
         if ($status === Password::RESET_LINK_SENT) {
-            $this->status = 'Tautan reset kata sandi telah berhasil dikirimkan ke email Anda! Silakan periksa kotak masuk atau folder spam Anda.';
+            $this->status = 'Permintaan reset kata sandi telah diproses!';
+            $this->directResetUrl = session('direct_reset_url') ?? cache()->get('direct_reset_url_' . $this->email);
         } else {
             $this->addError('email', 'Alamat email tidak ditemukan dalam catatan kami.');
         }
- }
+    }
 };
 ?>
 
@@ -59,10 +61,34 @@ new #[Layout('components.layouts.app')] #[Title('Lupa Kata Sandi - Ran CukurIn')
  </div>
 
  @if($status)
- <div class="p-4 lg:p-5 text-center space-y-4 rounded-xl bg-surface-container-high border-l-4 border-primary">
- <span class="material-symbols-outlined text-primary text-[40px]">mark_email_read</span>
- <h3 class="font-headline-md text-on-surface text-headline-md">Email Terkirim</h3>
- <p class="font-body-md text-body-md text-on-surface-variant">{{ $status }}</p>
+ <div class="space-y-4">
+     <div class="p-4 lg:p-5 text-center space-y-3 rounded-xl bg-surface-container-high border-l-4 border-primary">
+         <span class="material-symbols-outlined text-primary text-[40px]">mark_email_read</span>
+         <h3 class="font-headline-md text-on-surface text-headline-md">Permintaan Reset Berhasil</h3>
+         <p class="font-body-md text-body-md text-on-surface-variant">{{ $status }}</p>
+     </div>
+
+     @if($directResetUrl)
+         <div class="p-5 rounded-2xl bg-primary/10 border border-primary/30 text-left space-y-3 animate-[fadeIn_0.2s_ease-out]">
+             <div class="flex items-center gap-2 text-primary font-bold text-xs uppercase tracking-wider">
+                 <span class="material-symbols-outlined text-base">bolt</span>
+                 <span>Akses Cepat (Tanpa Perlu Buka Email)</span>
+             </div>
+             <p class="text-xs text-on-surface-variant leading-relaxed">
+                 Tautan reset kata sandi berhasil disiapkan. Anda dapat langsung mengklik tombol di bawah untuk membuat kata sandi baru secara instan:
+             </p>
+             <a href="{{ $directResetUrl }}" class="w-full py-3 px-4 rounded-xl bg-primary text-on-primary text-xs font-bold flex items-center justify-center gap-2 hover:bg-primary-fixed-dim transition-all shadow-md shadow-primary/20">
+                 <span class="material-symbols-outlined text-[16px]">lock_open</span>
+                 <span>Atur Ulang Kata Sandi Sekarang</span>
+             </a>
+         </div>
+     @endif
+
+     <div class="text-center pt-2">
+         <button wire:click="$set('status', '')" type="button" class="text-xs text-on-surface-variant hover:text-primary transition-colors underline cursor-pointer">
+             Kirim ulang ke email lain
+         </button>
+     </div>
  </div>
  @else
  <form wire:submit="sendPasswordResetLink" class="space-y-6">
