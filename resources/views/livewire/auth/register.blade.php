@@ -43,6 +43,7 @@ new #[Layout('components.layouts.app')] #[Title('Daftar Akun Baru - Ran CukurIn'
          'id' => $user->id,
          'nama' => $user->nama,
          'email' => $user->email,
+         'password' => $user->password,
          'role' => 'Pelanggan',
          'created_at' => now()->toDateTimeString(),
      ]);

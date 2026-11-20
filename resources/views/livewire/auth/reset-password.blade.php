@@ -20,35 +20,57 @@ new #[Layout('components.layouts.app')] #[Title('Buat Kata Sandi Baru - Ran Cuku
  $this->token = $token;
  }
 
- public function resetPassword()
- {
- $this->validate([
- 'token' => ['required'],
- 'email' => ['required', 'email'],
- 'password' => ['required', 'confirmed', Rules\Password::defaults()],
- ]);
+    public function resetPassword()
+    {
+        $this->validate([
+            'token' => ['required'],
+            'email' => ['required', 'email'],
+            'password' => ['required', 'confirmed', Rules\Password::defaults()],
+        ]);
 
- $status = Password::broker()->reset(
- [
- 'email' => $this->email,
- 'password' => $this->password,
- 'password_confirmation' => $this->password_confirmation,
- 'token' => $this->token,
- ],
- function ($user, $password) {
- $user->password = Hash::make($password);
- $user->setRememberToken(Str::random(60));
- $user->save();
- }
- );
+        $status = Password::broker()->reset(
+            [
+                'email' => $this->email,
+                'password' => $this->password,
+                'password_confirmation' => $this->password_confirmation,
+                'token' => $this->token,
+            ],
+            function ($user, $password) {
+                $user->password = Hash::make($password);
+                $user->setRememberToken(Str::random(60));
+                $user->save();
+
+                // Sinkronkan hash kata sandi baru ke Google Spreadsheet
+                try {
+                    app(\App\Services\GoogleSheetsService::class)->updateRow('pengguna', $user->id, [
+                        'password' => $user->password,
+                    ]);
+                } catch (\Throwable $e) {}
+            }
+        );
 
         if ($status == Password::PASSWORD_RESET) {
+            $user = \App\Models\User::where('email', $this->email)->first();
+            if ($user) {
+                \Illuminate\Support\Facades\Auth::login($user, true);
+                session()->regenerate();
+                session()->flash('status', 'Kata sandi berhasil diatur ulang! Selamat datang kembali.');
+
+                if ($user->role === 'Pelanggan' && ! $user->hasVerifiedEmail()) {
+                    $this->redirect(route('verification.notice', absolute: false));
+                    return;
+                }
+
+                $this->redirectIntended(route('dashboard'));
+                return;
+            }
+
             session()->flash('status', 'Kata sandi Anda berhasil diperbarui! Silakan masuk dengan kata sandi baru Anda.');
             $this->redirect(route('login', absolute: false));
         } else {
             $this->addError('email', 'Token reset kata sandi tidak valid atau telah kedaluwarsa.');
         }
- }
+    }
 };
 ?>
 

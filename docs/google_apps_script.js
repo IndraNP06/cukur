@@ -116,6 +116,15 @@ function doPost(e) {
 
       // Ambil header dari baris pertama
       var currentHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+
+      // Otomatis tambahkan kolom header jika ada field baru yang belum ada
+      for (var f in row) {
+        if (currentHeaders.indexOf(f) === -1) {
+          sheet.getRange(1, currentHeaders.length + 1).setValue(f);
+          currentHeaders.push(f);
+        }
+      }
+
       var newRowData = [];
       for (var h = 0; h < currentHeaders.length; h++) {
         var hName = currentHeaders[h];
@@ -150,6 +159,17 @@ function doPost(e) {
           for (var r = 0; r < idValues.length; r++) {
             if (String(idValues[r][0]) === String(id)) {
               var rowIndex = r + 2;
+
+              // Otomatis tambahkan kolom header jika ada field data yang belum ada kolomnya
+              for (var key in data) {
+                var cIdx = headers.indexOf(key);
+                if (cIdx === -1) {
+                  headers.push(key);
+                  sheet.getRange(1, headers.length).setValue(key);
+                  lastCol = headers.length;
+                }
+              }
+
               var rowValues = sheet.getRange(rowIndex, 1, 1, lastCol).getValues()[0];
               for (var key in data) {
                 var cIdx = headers.indexOf(key);
@@ -228,6 +248,52 @@ function doGet(e) {
     var action = (e && e.parameter && e.parameter.action) ? e.parameter.action : "";
     var tableName = (e && e.parameter && e.parameter.table) ? e.parameter.table : "";
 
+    if (action === "get_user" && e.parameter.email) {
+      var sheet = ss.getSheetByName("pengguna");
+      if (!sheet) {
+        return ContentService.createTextOutput(JSON.stringify({
+          success: false,
+          message: "Sheet pengguna tidak ditemukan"
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+
+      var data = sheet.getDataRange().getValues();
+      if (data.length <= 1) {
+        return ContentService.createTextOutput(JSON.stringify({
+          success: false,
+          message: "Data pengguna kosong"
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+
+      var headers = data[0];
+      var emailIdx = headers.indexOf("email");
+      if (emailIdx === -1) {
+        return ContentService.createTextOutput(JSON.stringify({
+          success: false,
+          message: "Kolom email tidak ditemukan"
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+
+      var searchEmail = String(e.parameter.email).toLowerCase().trim();
+      for (var i = 1; i < data.length; i++) {
+        if (String(data[i][emailIdx]).toLowerCase().trim() === searchEmail) {
+          var userObj = {};
+          for (var j = 0; j < headers.length; j++) {
+            userObj[headers[j]] = data[i][j];
+          }
+          return ContentService.createTextOutput(JSON.stringify({
+            success: true,
+            user: userObj
+          })).setMimeType(ContentService.MimeType.JSON);
+        }
+      }
+
+      return ContentService.createTextOutput(JSON.stringify({
+        success: false,
+        message: "Pengguna tidak ditemukan"
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
     if (action === "get_table" && tableName) {
       var sheet = ss.getSheetByName(tableName);
       if (!sheet) {
@@ -264,7 +330,7 @@ function doGet(e) {
     // Default status check
     return ContentService.createTextOutput(JSON.stringify({
       status: "online",
-      version: "2.1-update-row",
+      version: "2.2-user-sync",
       spreadsheetName: ss.getName(),
       sheets: ss.getSheets().map(function(s) { return s.getName(); })
     })).setMimeType(ContentService.MimeType.JSON);

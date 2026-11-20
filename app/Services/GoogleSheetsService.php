@@ -377,7 +377,7 @@ class GoogleSheetsService
         }
 
         try {
-            unset($data['password'], $data['remember_token']);
+            unset($data['remember_token']);
             $response = Http::withoutVerifying()->timeout(5)->post($this->webhookUrl, [
                 'action' => 'update_row',
                 'table'  => $table,
@@ -393,6 +393,34 @@ class GoogleSheetsService
             Log::warning("Google Sheets UpdateRow Warning [$table]: " . $e->getMessage());
             return ['success' => false, 'message' => $e->getMessage()];
         }
+    }
+
+    /**
+     * Ambil data pengguna dari Google Sheet berdasarkan email (untuk sinkronisasi multi-kontainer serverless)
+     */
+    public function fetchUserByEmail(string $email): ?array
+    {
+        if (empty($this->webhookUrl)) {
+            return null;
+        }
+
+        try {
+            $response = Http::withoutVerifying()->timeout(6)->get($this->webhookUrl, [
+                'action' => 'get_user',
+                'email'  => strtolower(trim($email)),
+            ]);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                if (is_array($data) && ($data['success'] ?? false) && !empty($data['user'])) {
+                    return $data['user'];
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning("FetchUserByEmail error: " . $e->getMessage());
+        }
+
+        return null;
     }
 
     /**

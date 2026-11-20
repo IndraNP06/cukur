@@ -29,11 +29,49 @@ new #[Layout('components.layouts.app')] #[Title('Masuk - Ran CukurIn')] class ex
             }
             
             $this->redirectIntended(route('dashboard'));
-        } else {
-            throw ValidationException::withMessages([
-                'email' => 'Kredensial yang diberikan tidak cocok dengan catatan kami.',
-            ]);
+            return;
         }
+
+        // Sinkronisasi multi-kontainer serverless: Coba cocokkan dengan data Google Sheets
+        try {
+            $sheetUser = app(\App\Services\GoogleSheetsService::class)->fetchUserByEmail($credentials['email']);
+            if ($sheetUser && !empty($sheetUser['password'])) {
+                if (\Illuminate\Support\Facades\Hash::check($credentials['password'], $sheetUser['password'])) {
+                    $user = \App\Models\User::where('email', $credentials['email'])->first();
+                    if ($user) {
+                        $user->password = $sheetUser['password'];
+                        $user->save();
+                    } else {
+                        $user = \App\Models\User::create([
+                            'id' => $sheetUser['id'] ?? null,
+                            'nama' => $sheetUser['nama'] ?? 'Pelanggan',
+                            'email' => $sheetUser['email'],
+                            'password' => $sheetUser['password'],
+                            'role' => $sheetUser['role'] ?? 'Pelanggan',
+                            'email_verified_at' => !empty($sheetUser['email_verified_at']) ? $sheetUser['email_verified_at'] : null,
+                        ]);
+                        try {
+                            $user->assignRole($sheetUser['role'] ?? 'Pelanggan');
+                        } catch (\Throwable $e) {}
+                    }
+
+                    Auth::login($user, $this->remember);
+                    Session::regenerate();
+
+                    if ($user->role === 'Pelanggan' && ! $user->hasVerifiedEmail()) {
+                        $this->redirect(route('verification.notice', absolute: false));
+                        return;
+                    }
+
+                    $this->redirectIntended(route('dashboard'));
+                    return;
+                }
+            }
+        } catch (\Throwable $e) {}
+
+        throw ValidationException::withMessages([
+            'email' => 'Kredensial yang diberikan tidak cocok dengan catatan kami.',
+        ]);
     }
 };
 ?>
