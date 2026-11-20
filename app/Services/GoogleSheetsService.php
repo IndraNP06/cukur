@@ -452,7 +452,7 @@ class GoogleSheetsService
 
         try {
             unset($data['remember_token']);
-            $response = Http::withoutVerifying()->timeout(5)->post($this->webhookUrl, [
+            $response = Http::withoutVerifying()->timeout(12)->post($this->webhookUrl, [
                 'action' => 'update_row',
                 'table'  => $table,
                 'id'     => $id,
@@ -479,7 +479,7 @@ class GoogleSheetsService
         }
 
         try {
-            $response = Http::withoutVerifying()->timeout(6)->get($this->webhookUrl, [
+            $response = Http::withoutVerifying()->timeout(12)->get($this->webhookUrl, [
                 'action' => 'get_user',
                 'email'  => strtolower(trim($email)),
             ]);
@@ -523,7 +523,7 @@ class GoogleSheetsService
                 }
                 $rows[] = $filtered;
             } else {
-                unset($row['password'], $row['remember_token']);
+                unset($row['remember_token']);
                 $rows[] = $row;
             }
         }

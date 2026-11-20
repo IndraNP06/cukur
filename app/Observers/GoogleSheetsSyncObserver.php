@@ -34,7 +34,7 @@ class GoogleSheetsSyncObserver
 
         try {
             $data = $model->getAttributes();
-            unset($data['password'], $data['remember_token']);
+            unset($data['remember_token']);
 
             /** @var GoogleSheetsService $service */
             $service = app(GoogleSheetsService::class);
@@ -60,11 +60,11 @@ class GoogleSheetsSyncObserver
 
         $table = self::$tableMap[$class];
 
-        // Untuk tabel antrean_pemesanan, gunakan updateRow yang sangat cepat (<500ms) untuk memperbarui hanya baris tersebut
-        if ($table === 'antrean_pemesanan') {
+        // Untuk tabel antrean_pemesanan, barang, dan pengguna: gunakan updateRow yang sangat cepat (<500ms) untuk memperbarui hanya baris tersebut
+        if (in_array($table, ['antrean_pemesanan', 'barang', 'pengguna'])) {
             try {
                 $data = $model->getAttributes();
-                unset($data['password'], $data['remember_token']);
+                unset($data['remember_token']);
                 /** @var GoogleSheetsService $service */
                 $service = app(GoogleSheetsService::class);
                 $service->updateRow($table, $model->getKey(), $data);
@@ -94,10 +94,8 @@ class GoogleSheetsSyncObserver
 
         $table = self::$tableMap[$class];
 
-        // Cegah sinkronisasi tabel besar (ribuan baris seperti antrean dan transaksi) secara sinkron pada request HTTP/Livewire
-        // karena mengirim 5.700+ baris via HTTP memakan waktu 10-20 detik dan memblokir respon UI.
-        // Sinkronisasi tabel besar dilakukan via tombol 'Sinkron Spreadsheet' atau artisan sheets:sync.
-        if (in_array($table, ['antrean_pemesanan', 'transaksi'])) {
+        // Cegah sinkronisasi tabel besar (ribuan baris seperti antrean, transaksi, dan pengguna) secara sinkron pada request HTTP/Livewire
+        if (in_array($table, ['antrean_pemesanan', 'transaksi', 'pengguna'])) {
             return;
         }
 
