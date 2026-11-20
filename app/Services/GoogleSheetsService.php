@@ -310,6 +310,80 @@ class GoogleSheetsService
     }
 
     /**
+     * Tarik pengguna baru dari Google Sheets ke SQLite lokal kontainer serverless secara cepat (<500ms)
+     */
+    public function pullRecentUsers(): array
+    {
+        if (!$this->isConfigured()) {
+            return ['success' => false, 'message' => 'Google Sheets belum dikonfigurasi'];
+        }
+
+        $url = "https://docs.google.com/spreadsheets/d/{$this->spreadsheetId}/gviz/tq?tqx=out:csv&sheet=pengguna";
+
+        try {
+            $response = Http::withoutVerifying()->timeout(5)->get($url);
+            if (!$response->successful()) {
+                return ['success' => false, 'message' => 'Gagal mengambil data dari Google Sheets'];
+            }
+
+            $csv = $response->body();
+            if (empty(trim($csv))) {
+                return ['success' => true, 'count' => 0];
+            }
+
+            $lines = explode("\n", trim($csv));
+            $headers = str_getcsv(array_shift($lines));
+            $headers = array_map(function($h) { return trim($h, " \t\n\r\0\x0B\""); }, $headers);
+            $availableColumns = $this->getTableColumns('pengguna');
+            $validHeaders = array_intersect($headers, $availableColumns);
+
+            DB::beginTransaction();
+            $updated = 0;
+            foreach ($lines as $line) {
+                if (empty(trim($line))) continue;
+                $row = str_getcsv($line);
+                if (count($row) < count($headers)) {
+                    $row = array_pad($row, count($headers), '');
+                }
+                $record = [];
+                foreach ($headers as $idx => $colName) {
+                    if (in_array($colName, $validHeaders)) {
+                        $val = $row[$idx] ?? null;
+                        if ($val === '' || $val === 'null' || $val === 'NULL') {
+                            $val = null;
+                        }
+                        $record[$colName] = $val;
+                    }
+                }
+                if (!empty($record['id'])) {
+                    $existing = DB::table('pengguna')->where('id', $record['id'])->first();
+                    if (!$existing) {
+                        if (empty($record['password'])) {
+                            $record['password'] = Hash::make('password123');
+                        }
+                        DB::table('pengguna')->insert($record);
+                        $updated++;
+                    } else {
+                        if (!empty($record['password']) && $record['password'] !== $existing->password) {
+                            DB::table('pengguna')->where('id', $record['id'])->update(['password' => $record['password']]);
+                            $updated++;
+                        }
+                        if (!empty($record['email_verified_at']) && empty($existing->email_verified_at)) {
+                            DB::table('pengguna')->where('id', $record['id'])->update(['email_verified_at' => $record['email_verified_at']]);
+                        }
+                    }
+                }
+            }
+            DB::commit();
+
+            return ['success' => true, 'count' => $updated];
+        } catch (\Throwable $e) {
+            Log::warning("Error pullRecentUsers: " . $e->getMessage());
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
      * Tarik seluruh tabel dari Google Sheets ke database lokal/serverless
      */
     public function pullAll(): array
